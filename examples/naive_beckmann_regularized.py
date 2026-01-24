@@ -30,7 +30,7 @@ if __name__ == "__main__":
     csr = CSRGraph.from_edges(n_nodes, tail, head)
 
     # Функция стоимости ребра
-    cap = np.array([2000, 2000, 1500, 1500, 1500, 1500, 2000, 2000, 1500, 1500], dtype=np.float64)
+    cap = np.array([20, 20, 15, 15, 15, 15, 20, 20, 15, 15], dtype=np.float64)
     t0  = np.array([6, 4, 5, 5, 4, 4, 6, 4, 5, 5], dtype=np.float64)
     alpha = np.full_like(t0, 0.15)
     beta  = np.full_like(t0, 4.0)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     experiment_mask[1] = 1
 
     flow, gradient, gradient_for_optimal_potential_value_over_D \
-        = beckmann.fw_beckmann_regularized(csr, edge_cost, D, f_hat, experiment_mask, alpha=1, max_iter=5000)
+        = beckmann.fw_beckmann_regularized_marginal(csr, edge_cost, D, f_hat, experiment_mask, alpha=0.9, max_iter=5000)
 
     # А теперь решение классической задачи (равновесное распределение потоков)
 

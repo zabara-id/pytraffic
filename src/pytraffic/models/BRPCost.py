@@ -17,6 +17,7 @@ class BRP:
     def __call__(self, flow):
         # Расчет самой функции стоимости на рёбрах
         x = flow / self.cap
+        x[x < 0] = 0
         return self.t0 * (1.0 + self.alpha * x**self.beta)
     
     def grad(self, flow):

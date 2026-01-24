@@ -207,3 +207,51 @@ def fw_beckmann_regularized(
     gradint_of_optimal_potential_value = ((beckmann_part + additional_part) @ gradient)
     
     return flow, gradient, gradint_of_optimal_potential_value
+
+# Маргинальная функция
+def fw_beckmann_regularized_marginal(
+    csr: CSRGraph,
+    edge_cost,
+    D : np.ndarray,
+    f_hat, 
+    experiment_mask,
+    alpha = 1e-2,
+    max_iter=500,
+    rgap_target=1e-4,
+    verbose=True,
+):
+ 
+    flow = np.zeros(csr.m, dtype=np.float64)
+    flow, _ = fw_beckmann(csr, edge_cost, D, max_iter=500, rgap_target=1e-4, verbose=False)
+    gradient = np.zeros(shape=(csr.m, csr.n * csr.n))
+    gradint_of_optimal_potential_value = np.zeros(shape=csr.n * csr.n)
+
+    for k in range(1, max_iter + 1):
+        # Новый рачет поля стоимости на ребрах, с учетом регуляризации прямо самих потоков
+        corrected_flow = alpha * experiment_mask * (f_hat - flow) + flow
+        print(corrected_flow[0])
+        edge_cost_field = edge_cost(corrected_flow)
+    
+        y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
+
+        # Шаг аглоритма Франка-Вульфа
+        gamma = 2.0 / (k + 2.0)
+        flow = (1.0 - gamma) * flow + gamma * y
+        gradient = (1.0 - gamma) * gradient + gamma * gradient_k
+
+        corrected_flow = flow - alpha * experiment_mask * (flow - f_hat)
+        new_edge_cost_field = edge_cost(corrected_flow)
+        rg = stop_criterion(flow, new_edge_cost_field, total_cost_k)
+
+        # Это просто полезный вывод
+        if verbose and (k == 1 or k % 10 == 0 or rg <= rgap_target):
+            print(f"iter={k:4d}  gamma={gamma:.6f}  rgap={rg:.3e} grad_norm={np.linalg.norm(gradient):.6f} step_diff={np.linalg.norm(gamma / (1 - gamma) * (y - flow)) / np.linalg.norm(flow)}")
+
+        if rg <= rgap_target:
+            break
+
+    # Расчет градиента от функции F(D)
+    beckmann_part = edge_cost(flow + alpha * experiment_mask * (f_hat - flow))
+    gradint_of_optimal_potential_value = ((beckmann_part) @ gradient)
+    
+    return flow, gradient, gradint_of_optimal_potential_value

@@ -118,7 +118,7 @@ def fw_beckmann(
 
         # Это просто полезный вывод
         if verbose and (k == 1 or k % 10 == 0 or rg <= rgap_target):
-            print(f"iter={k:4d}  gamma={gamma:.6f}  rgap={rg:.3e} grad_norm={np.linalg.norm(gradient):.6f}")
+            print(f"iter={k:4d}  gamma={gamma:.6f}  rgap={rg:.3e} grad_norm={np.linalg.norm(gradient):.6f} step_diff={np.linalg.norm(gamma / (1 - gamma) * (y - flow)) / np.linalg.norm(flow)}")
 
         if rg <= rgap_target:
             break
@@ -180,7 +180,7 @@ def fw_beckmann_regularized(
                              Возможно, необходимо уменьшить регуляризатор alpha")
             # Если уж стоимость ребра оказалась отрицательной, то будет считать, что по этому ребру стоимость просто нуль
             # ААААААААААААААААААААААААААА: Но это влияет на функционал, он должен быть модифицирован
-            edge_cost[edge_cost < 0] = 0
+            edge_cost_field[edge_cost_field < 0] = 0
     
         y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
 
@@ -196,7 +196,7 @@ def fw_beckmann_regularized(
 
         # Это просто полезный вывод
         if verbose and (k == 1 or k % 10 == 0 or rg <= rgap_target):
-            print(f"iter={k:4d}  gamma={gamma:.6f}  rgap={rg:.3e} grad_norm={np.linalg.norm(gradient):.6f}")
+            print(f"iter={k:4d}  gamma={gamma:.6f}  rgap={rg:.3e} grad_norm={np.linalg.norm(gradient):.6f} step_diff={np.linalg.norm(gamma / (1 - gamma) * (y - flow)) / np.linalg.norm(flow)}")
 
         if rg <= rgap_target:
             break

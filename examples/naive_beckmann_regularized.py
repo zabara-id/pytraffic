@@ -55,7 +55,7 @@ if __name__ == "__main__":
     experiment_mask[1] = 1
 
     flow, gradient, gradient_for_optimal_potential_value_over_D \
-        = beckmann.fw_beckmann_regularized(csr, edge_cost, D, f_hat, experiment_mask, alpha=1e-1, max_iter=1000)
+        = beckmann.fw_beckmann_regularized(csr, edge_cost, D, f_hat, experiment_mask, alpha=1, max_iter=5000)
 
     # А теперь решение классической задачи (равновесное распределение потоков)
 

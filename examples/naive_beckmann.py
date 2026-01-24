@@ -1,7 +1,14 @@
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+PYTRAFFIC_DIR = ROOT_DIR / "src" / "pytraffic"
+sys.path.insert(0, str(PYTRAFFIC_DIR))
+
 import numpy as np
-from src.pytraffic.graph.CSRGraph import CSRGraph
-from src.pytraffic.models.BRPCost import BRP
-import src.pytraffic.models.Beckmann as beckmann
+from graph.CSRGraph import CSRGraph
+from models.BRPCost import BRP
+import models.Beckmann as beckmann
 
 # ============================================================
 # Example
@@ -37,8 +44,8 @@ if __name__ == "__main__":
         [0,  30, 10,  0],
     ], dtype=np.float64)
 
-    flow, time = beckmann.fw_beckmann(csr, edge_cost, D)
+    flow, gradient = beckmann.fw_beckmann(csr, edge_cost, D)
 
-    print("\nFinal link flows / times:")
+    print("\nFinal link flows:")
     for e in range(csr.m):
-        print(f"{tail[e]}->{head[e]}  flow={flow[e]:.3f}  time={time[e]:.3f}")
+        print(f"{tail[e]}->{head[e]}  flow={flow[e]:.3f}")

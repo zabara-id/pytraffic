@@ -24,4 +24,4 @@ class BRP:
         # по факту она диагональная, так что возвращается просто вектор)
         # Матрицу получаем через np.diag(result)
         x = flow / self.cap
-        return (self.t0 * self.alpha * self.beta / self.cap) * x**(self.beta - 1) 
+        return (self.t0 * self.alpha * self.beta / self.cap) * x**(self.beta - 1)

@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 
-from graph import CSRGraph
+from pytraffic.graph.CSRGraph import CSRGraph
 from typing import Tuple
 
 def stop_criterion(flow, time, sp_cost):

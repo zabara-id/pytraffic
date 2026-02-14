@@ -63,5 +63,7 @@ if __name__ == "__main__":
 
     print("Difference between requlirized and equilibriul solution")
     for e in range(csr.m):
-        print(f"{tail[e]}->{head[e]}\tflow_r={flow[e]:.3f}\tflow_e={flow_eq[e]:.3f}\tdiff={flow[e]-flow_eq[e]:.3f}")    
+        print(f"{tail[e]}->{head[e]}\tflow_r={flow[e]:.3f}\tflow_e={flow_eq[e]:.3f}\tdiff={flow[e]-flow_eq[e]:.3f}") 
+
+    print(gradient_for_optimal_potential_value_over_D.shape)
 

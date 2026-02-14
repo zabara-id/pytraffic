@@ -229,7 +229,7 @@ def fw_beckmann_regularized_marginal(
     for k in range(1, max_iter + 1):
         # Новый рачет поля стоимости на ребрах, с учетом регуляризации прямо самих потоков
         corrected_flow = alpha * experiment_mask * (f_hat - flow) + flow
-        print(corrected_flow[0])
+        # print(corrected_flow[0])
         edge_cost_field = edge_cost(corrected_flow)
     
         y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)

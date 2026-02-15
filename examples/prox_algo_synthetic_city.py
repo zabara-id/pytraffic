@@ -122,28 +122,35 @@ def init_outer_marginals(ell: np.ndarray, w: np.ndarray, diag_zero: bool = True)
     return D0.reshape(-1)
 
 
-def init_truncated_svd_marginals(
-    ell: np.ndarray,
-    w: np.ndarray,
+def init_truncated_svd_matrix(
+    D_base: np.ndarray,
     rank_keep: int | None = None,
     sv_noise_std: float = 0.0,
     random_seed: int | None = None,
+    target_sum: float | None = None,
     diag_zero: bool = True,
 ) -> np.ndarray:
     """
-    Альтернативная инициализация OD-матрицы через truncated SVD.
+    Альтернативная инициализация OD-матрицы через truncated SVD от заданной матрицы.
 
-    1) Строим базовую матрицу по внешнему произведению marginals,
+    1) Берем базовую матрицу D_base (например, D_true),
     2) делаем SVD,
     3) обрезаем хвост сингулярных значений (rank_keep) и/или зашумляем их,
     4) собираем матрицу обратно, проецируем на неотрицательные значения и нормируем массу.
     """
-    D0 = np.outer(ell, w) / (ell.sum() + EPS)
+    D0 = np.asarray(D_base, dtype=float)
+    if D0.ndim != 2 or D0.shape[0] != D0.shape[1]:
+        raise ValueError("D_base должна быть квадратной матрицей.")
+
+    if target_sum is None:
+        target_sum = float(D0.sum())
+    if target_sum <= 0:
+        raise ValueError("target_sum должна быть положительной.")
 
     u, s, vt = np.linalg.svd(D0, full_matrices=False)
     if rank_keep is not None:
-        if rank_keep < 0:
-            raise ValueError("rank_keep должен быть >= 0 или None.")
+        if rank_keep < 0 or rank_keep > s.size:
+            raise ValueError(f"rank_keep должен быть в диапазоне [0, {s.size}] или None.")
         s[rank_keep:] = 0.0
 
     if sv_noise_std > 0.0:
@@ -156,10 +163,10 @@ def init_truncated_svd_marginals(
 
     if diag_zero:
         np.fill_diagonal(D_init, 0.0)
-    D_init *= ell.sum() / (D_init.sum() + EPS)
+    D_init *= target_sum / (D_init.sum() + EPS)
     if diag_zero:
         np.fill_diagonal(D_init, 0.0)
-        D_init *= ell.sum() / (D_init.sum() + EPS)
+        D_init *= target_sum / (D_init.sum() + EPS)
         np.fill_diagonal(D_init, 0.0)
 
     return D_init.reshape(-1)
@@ -322,20 +329,17 @@ if __name__ == "__main__":
     min_total_mass_ratio = 0.4  # Требуем d_try.sum() >= min_total_mass_ratio * sum(ell).
 
     d = init_outer_marginals(ell, w, diag_zero=True)
-
-    """
-    Альтернативное начальное приближение через truncated SVD.
-    Раскомментируйте блок ниже, если хотите использовать его вместо init_outer_marginals.
-    """
-    # d = init_truncated_svd_marginals(
-    #     ell,
-    #     w,
+    # Альтернативное начальное приближение через truncated SVD от D_true.
+    # Раскомментируйте блок ниже, если хотите использовать его вместо init_outer_marginals.
+    # d = init_truncated_svd_matrix(
+    #     D_true,
     #     rank_keep=3,
     #     sv_noise_std=0.05,
     #     random_seed=42,
+    #     target_sum=ell.sum(),
     #     diag_zero=True,
     # )
-    
+
     prev_d = d.copy()
     best_d = d.copy()
     best_iter = -1

@@ -15,40 +15,40 @@ from pytraffic.graph.CSRGraph import CSRGraph
 from pytraffic.models.BRPCost import BRP
 import pytraffic.models.Beckmann as beckmann
 
+EPS = 1e-12  # Численная стабилизация в делениях и нормах.
+MAX_BACKTRACK_TRIALS = 20  # Максимум попыток подбора шага eta на одной итерации.
 
-# ---------------------------
-# Построение операторов маргиналов для row-major vec(D)
-# ---------------------------
+
 def build_L_row_col(n: int):
     """
-    Для d = vec(D) в row-major: k = i*n + j.
+    Строит операторы суммирования по строкам и столбцам для d = vec(D) в row-major.
 
-    L_row @ d = суммы по строкам (ell_hat), размер (n,)
-    L_col @ d = суммы по столбцам (w_hat), размер (n,)
+    Индекс в векторизации: k = i*n + j.
+    L_row @ d -> суммы по строкам, размер (n,).
+    L_col @ d -> суммы по столбцам, размер (n,).
     """
-    nn = n * n
-    i = np.repeat(np.arange(n), n)      # индекс строки в D
-    j = np.tile(np.arange(n), n)        # индекс столбца в D
-    k = i * n + j                       # индекс в vec
+    num_vars = n * n
+    i = np.repeat(np.arange(n), n)  # индекс строки в D
+    j = np.tile(np.arange(n), n)  # индекс столбца в D
+    k = i * n + j  # индекс в vec
 
-    data = np.ones(nn, dtype=np.float64)
+    data = np.ones(num_vars, dtype=np.float64)
 
-    L_row = sp.coo_matrix((data, (i, k)), shape=(n, nn)).tocsr()  # сумма по j для каждого i
-    L_col = sp.coo_matrix((data, (j, k)), shape=(n, nn)).tocsr()  # сумма по i для каждого j
+    # Суммирование по j для каждого i.
+    L_row = sp.coo_matrix((data, (i, k)), shape=(n, num_vars)).tocsr()
+    # Суммирование по i для каждого j.
+    L_col = sp.coo_matrix((data, (j, k)), shape=(n, num_vars)).tocsr()
     return L_row, L_col
 
 
-# ---------------------------
-# Прокс энтропии + неотрицательности (поэлементно), используется в z-обновлении ADMM
-# ---------------------------
 def prox_entropy_nonneg(y: np.ndarray, rho: float, gamma: float) -> np.ndarray:
     """
     z = argmin_{z>=0} gamma * sum z log z + (rho/2) ||z - y||^2
 
-    Формула в замкнутом виде:
+    Закрытая формула:
       z = (gamma/rho) * W( (rho/gamma) * exp( (rho/gamma)*y - 1 ) )
 
-    Численно устойчивая реализация:
+    Устойчивый вариант:
       W(exp(a)) = wrightomega(a), чтобы избежать overflow при больших положительных a.
     """
     assert rho > 0 and gamma > 0
@@ -59,16 +59,13 @@ def prox_entropy_nonneg(y: np.ndarray, rho: float, gamma: float) -> np.ndarray:
     return z
 
 
-# ---------------------------
-# ADMM-прокс для g(d): мягкие маргиналы, неотрицательность и нулевая диагональ
-# ---------------------------
 def prox_g_admm(
-    v: np.ndarray,          # (n^2,)
+    v: np.ndarray,  # (n^2,)
     eta: float,
     gamma: float,
     alpha: float,
-    ell: np.ndarray,        # (n,)
-    w: np.ndarray,          # (n,)
+    ell: np.ndarray,  # (n,)
+    w: np.ndarray,  # (n,)
     L_row: sp.csr_matrix,
     L_col: sp.csr_matrix,
     rho: float = 1.0,
@@ -82,49 +79,44 @@ def prox_g_admm(
       min_d  (1/(2eta))||d - v||^2 + gamma*sum d log d + alpha(||L_row d - ell||^2 + ||L_col d - w||^2)
       при d >= 0 и diag(D)=0
 
-    ADMM-разбиение: d (квадратичная часть) и z (энтропия + неотрицательность), связь d=z.
-
-    d-обновление: решение разреженной квадратичной задачи;
-    z-обновление: поэлементный LambertW;
-    u-обновление: стандартное для ADMM.
+    ADMM-разбиение:
+      d - квадратичная часть,
+      z - энтропия + неотрицательность,
+      связь d = z.
     """
     n = ell.size
-    nn = n * n
-    assert v.shape == (nn,)
+    num_vars = n * n
+    assert v.shape == (num_vars,)
     assert eta > 0 and gamma > 0 and alpha >= 0 and rho > 0
 
     ell = np.asarray(ell, float).reshape(n)
     w = np.asarray(w, float).reshape(n)
 
-    # Маска диагонали (если нужна): решаем только по внедиагональным переменным
-    diag_mask = np.zeros(nn, dtype=bool)
+    # Решаем только по внедиагональным переменным, если требуется нулевая диагональ.
+    diag_mask = np.zeros(num_vars, dtype=bool)
     if diag_zero:
-        for i in range(n):
-            diag_mask[i * n + i] = True
-    free = ~diag_mask
-    idx = np.where(free)[0]
-    m = idx.size  # = n^2 - n
+        diag_mask[:: n + 1] = True
 
-    # Редуцированные операторы:
-    # L_row_red = L_row[:, idx], аналогично для столбцов
-    Lr = L_row[:, idx].tocsr()
-    Lc = L_col[:, idx].tocsr()
+    free_idx = np.flatnonzero(~diag_mask)
+    num_free = free_idx.size
 
-    # Квадратичная матрица для d-обновления:
-    # H = (1/eta) I + 2alpha (Lr^T Lr + Lc^T Lc) + rho I
-    I = sp.eye(m, format="csr")
-    AtA = (Lr.T @ Lr) + (Lc.T @ Lc)
-    H = (1.0 / eta) * I + 2.0 * alpha * AtA + rho * I
-    H_factor = spla.factorized(H.tocsc())  # быстрые решения
+    # Редуцированные операторы L_row[:, free_idx] и L_col[:, free_idx].
+    Lr = L_row[:, free_idx].tocsr()
+    Lc = L_col[:, free_idx].tocsr()
 
-    # Правая часть для штрафа по маргиналам: 2alpha (Lr^T ell + Lc^T w)
-    b_marg = 2.0 * alpha * (Lr.T @ ell + Lc.T @ w)  # (m,)
+    # H = (1/eta) I + 2*alpha*(Lr^T Lr + Lc^T Lc) + rho I.
+    identity = sp.eye(num_free, format="csr")
+    gram = (Lr.T @ Lr) + (Lc.T @ Lc)
+    system_matrix = (1.0 / eta) * identity + 2.0 * alpha * gram + rho * identity
+    solve_linear = spla.factorized(system_matrix.tocsc())
 
-    # Инициализация
+    # Постоянная часть правой части: 2*alpha*(Lr^T ell + Lc^T w).
+    rhs_marginal = 2.0 * alpha * (Lr.T @ ell + Lc.T @ w)
+
     d = np.maximum(v, 0.0).copy()
     if diag_zero:
         d[diag_mask] = 0.0
-    d_red = d[idx]
+    d_red = d[free_idx]
 
     z_red = d_red.copy()
     u_red = np.zeros_like(d_red)
@@ -135,18 +127,17 @@ def prox_g_admm(
     for _ in range(max_iter):
         z_old = z_red.copy()
 
-        # ---- d-обновление (квадратичное решение) ----
-        rhs = (1.0 / eta) * v[idx] + b_marg + rho * (z_red - u_red)
-        d_red = H_factor(rhs)
+        # d-обновление: решение разреженной квадратичной задачи.
+        rhs = (1.0 / eta) * v[free_idx] + rhs_marginal + rho * (z_red - u_red)
+        d_red = solve_linear(rhs)
 
-        # ---- z-обновление (энтропия + неотрицательность) ----
-        y = d_red + u_red
-        z_red = prox_entropy_nonneg(y, rho=rho, gamma=gamma)
+        # z-обновление: энтропия + неотрицательность.
+        z_red = prox_entropy_nonneg(d_red + u_red, rho=rho, gamma=gamma)
 
-        # ---- u-обновление ----
+        # u-обновление.
         u_red = u_red + (d_red - z_red)
 
-        # Невязки ADMM
+        # Невязки ADMM.
         pri = np.linalg.norm(d_red - z_red)
         dual = rho * np.linalg.norm(z_red - z_old)
         pri_hist.append(pri)
@@ -155,9 +146,9 @@ def prox_g_admm(
         if pri < tol_pri and dual < tol_dual:
             break
 
-    # Собираем полный вектор d
-    d_out = np.zeros(nn, dtype=float)
-    d_out[idx] = z_red  # берем z как примал (гарантирует неотрицательность)
+    d_out = np.zeros(num_vars, dtype=float)
+    # В итог берем z: оно уже удовлетворяет неотрицательности.
+    d_out[free_idx] = z_red
     if diag_zero:
         d_out[diag_mask] = 0.0
 
@@ -170,13 +161,12 @@ def prox_g_admm(
 
 
 def init_outer_marginals(ell: np.ndarray, w: np.ndarray, diag_zero: bool = True) -> np.ndarray:
-    n = ell.size
-    D0 = np.outer(ell, w) / (ell.sum() + 1e-12)
+    d0 = np.outer(ell, w) / (ell.sum() + EPS)
     if diag_zero:
-        np.fill_diagonal(D0, 0.0)
-        D0 *= ell.sum() / (D0.sum() + 1e-12)
-        np.fill_diagonal(D0, 0.0)
-    return D0.reshape(-1)
+        np.fill_diagonal(d0, 0.0)
+        d0 *= ell.sum() / (d0.sum() + EPS)
+        np.fill_diagonal(d0, 0.0)
+    return d0.reshape(-1)
 
 
 def safe_semilogy(x, y, **kwargs):
@@ -188,9 +178,7 @@ def safe_semilogy(x, y, **kwargs):
 
 
 if __name__ == "__main__":
-    # =========================
-    # Пример данных
-    # =========================
+    # Входные данные.
     n_nodes = 4
 
     tail = np.array([0, 1, 0, 2, 1, 2, 1, 3, 2, 3], dtype=np.int32)
@@ -198,52 +186,57 @@ if __name__ == "__main__":
     csr = CSRGraph.from_edges(n_nodes, tail, head)
 
     cap = np.array([20, 20, 15, 15, 15, 15, 20, 20, 15, 15], dtype=np.float64)
-    t0  = np.array([6, 4, 5, 5, 4, 4, 6, 4, 5, 5], dtype=np.float64)
+    t0 = np.array([6, 4, 5, 5, 4, 4, 6, 4, 5, 5], dtype=np.float64)
     alpha_bpr = np.full_like(t0, 0.15)
-    beta_bpr  = np.full_like(t0, 4.0)
+    beta_bpr = np.full_like(t0, 4.0)
     edge_cost = BRP(cap, t0, alpha_bpr, beta_bpr)
 
     D_true = np.array([
-        [0, 100, 50,  0],
-        [80,  0,  20, 10],
-        [40, 10,  0, 30],
-        [0,  30, 10,  0],
+        [0, 100, 50, 0],
+        [80, 0, 20, 10],
+        [40, 10, 0, 30],
+        [0, 30, 10, 0],
     ], dtype=np.float64)
 
     f_hat = np.zeros_like(cap)
     f_hat[0] = 90
     f_hat[1] = 67
     # При наблюдении только двух рёбер обратная задача недоопределена:
-    # можно хорошо согласовать маргиналы и измеренные потоки, но D_true не единственна.
+    # можно хорошо согласовать маргиналии и измеренные потоки, но D_true не единственна.
     experiment_mask = np.zeros_like(f_hat)
     experiment_mask[0] = 1
     experiment_mask[1] = 1
 
-    # Целевые маргиналы (мягкое соблюдение через штраф)
+    # Целевые маргиналии (мягкое соблюдение через штраф)
     ell = D_true.sum(axis=1)
     w = D_true.sum(axis=0)
 
     # Операторы суммирования по строкам/столбцам
     L_row, L_col = build_L_row_col(n_nodes)
 
-    # =========================
-    # Параметры прокс-градиента
-    # =========================
-    K = 120
-    eta0 = 1e-4          # базовый шаг (с backtracking)
-    gamma = 1e-2         # вес энтропии
-    alpha = 300.0        # сильный штраф для согласования маргиналов
-    rho = 1.0            # штраф ADMM
+    # Параметры внешнего проксимально-градиентного цикла.
+    K = 120  # Количество внешних итераций обновления OD-матрицы.
+    eta0 = 1e-4  # Начальный шаг градиентного шага (до подбора).
+    gamma = 1e-2  # Вес энтропийной регуляризации в prox-подзадаче.
+    alpha = 300.0  # Вес штрафа за несоблюдение целевых маргиналий.
+    rho = 1.0  # Штраф ADMM для связи d = z.
 
-    admm_max_iter = 2000
-    admm_tol_pri = 1e-6
-    admm_tol_dual = 1e-6
+    admm_max_iter = 2000  # Максимум внутренних итераций ADMM на один внешний шаг.
+    admm_tol_pri = 1e-6  # Порог остановки ADMM по первичной невязке.
+    admm_tol_dual = 1e-6  # Порог остановки ADMM по двойственной невязке.
 
-    # Начальное приближение
+    # Настройки решателя Бекмана внутри внешнего цикла.
+    fw_inner_alpha = 0.9  # Вес регуляризации в fw_beckmann_regularized_marginal.
+    fw_inner_max_iter = 5000  # Лимит итераций внутреннего Frank-Wolfe-решателя.
+
+    # Технический порог приемки prox-шага по суммарной массе спроса.
+    min_total_mass_ratio = 0.2  # Требуем d_try.sum() >= min_total_mass_ratio * sum(ell).
+
+    # Начальное приближение.
     d = init_outer_marginals(ell, w, diag_zero=True)
     prev_d = d.copy()
 
-    # Логи метрик
+    # История метрик.
     hist_eta = []
     hist_step = []
     hist_gnorm = []
@@ -258,43 +251,55 @@ if __name__ == "__main__":
     hist_prox_correction = []
     hist_net_step_abs = []
 
-    norm_true = np.linalg.norm(D_true) + 1e-12
+    norm_true = np.linalg.norm(D_true) + EPS
+    masked_f_hat_norm = np.linalg.norm(f_hat * experiment_mask) + EPS
 
     for k in range(K):
         d_before_update = d.copy()
-        Dmat = d.reshape(n_nodes, n_nodes)
+        d_matrix = d.reshape(n_nodes, n_nodes)
 
-        # ---- Градиент части Бекмана ----
-        flow, gradient, grad_F_over_D = beckmann.fw_beckmann_regularized_marginal(
-            csr, edge_cost, Dmat, f_hat, experiment_mask, alpha=0.9, max_iter=5000, verbose=False
+        # Градиентная часть функционала Бекмана.
+        flow, _, grad_F_over_D = beckmann.fw_beckmann_regularized_marginal(
+            csr,
+            edge_cost,
+            d_matrix,
+            f_hat,
+            experiment_mask,
+            alpha=fw_inner_alpha,
+            max_iter=fw_inner_max_iter,
+            verbose=False,
         )
         g = grad_F_over_D.reshape(n_nodes, n_nodes)
         np.fill_diagonal(g, 0.0)
         gnorm = np.linalg.norm(g)
 
-        # ---- Backtracking по eta (принимаем, если prox-решение корректно) ----
+        # Подбор шага eta: принимаем только корректное решение проксимальной подзадачи.
         eta = eta0
         accepted = False
         info = None
         accepted_v = None
 
-        for _trial in range(20):
+        for _ in range(MAX_BACKTRACK_TRIALS):
             v = d_before_update - eta * g.reshape(-1)
 
             d_try, info = prox_g_admm(
                 v=v,
-                eta=eta, gamma=gamma, alpha=alpha,
-                ell=ell, w=w,
-                L_row=L_row, L_col=L_col,
+                eta=eta,
+                gamma=gamma,
+                alpha=alpha,
+                ell=ell,
+                w=w,
+                L_row=L_row,
+                L_col=L_col,
                 rho=rho,
                 max_iter=admm_max_iter,
                 tol_pri=admm_tol_pri,
                 tol_dual=admm_tol_dual,
-                diag_zero=True
+                diag_zero=True,
             )
 
-            # Критерий принятия: конечные значения и разумная суммарная масса
-            if np.isfinite(d_try).all() and d_try.sum() > 0.2 * ell.sum():
+            # Критерий принятия: конечность значений и разумная общая масса.
+            if np.isfinite(d_try).all() and d_try.sum() > min_total_mass_ratio * ell.sum():
                 d = d_try
                 accepted_v = v
                 accepted = True
@@ -302,24 +307,24 @@ if __name__ == "__main__":
             eta *= 0.5
 
         if not accepted:
-            # Если не удалось принять шаг, уменьшаем базовый eta0
+            # Если шаг не принят, уменьшаем базовый масштаб.
             eta0 *= 0.5
 
-        # ---- Метрики ----
-        step = np.linalg.norm(d - prev_d) / (np.linalg.norm(prev_d) + 1e-12)
+        # Метрики итерации.
+        step = np.linalg.norm(d - prev_d) / (np.linalg.norm(prev_d) + EPS)
         prev_d = d.copy()
         grad_step = np.linalg.norm(eta * g.reshape(-1))
         prox_correction = np.linalg.norm(d - accepted_v) if accepted_v is not None else np.nan
         net_step_abs = np.linalg.norm(d - d_before_update)
 
-        Drec = d.reshape(n_nodes, n_nodes)
-        row_err = np.linalg.norm(Drec.sum(axis=1) - ell) / (np.linalg.norm(ell) + 1e-12)
-        col_err = np.linalg.norm(Drec.sum(axis=0) - w) / (np.linalg.norm(w) + 1e-12)
+        d_recovered = d.reshape(n_nodes, n_nodes)
+        row_err = np.linalg.norm(d_recovered.sum(axis=1) - ell) / (np.linalg.norm(ell) + EPS)
+        col_err = np.linalg.norm(d_recovered.sum(axis=0) - w) / (np.linalg.norm(w) + EPS)
 
         diff = (flow - f_hat) * experiment_mask
-        flow_misfit = np.linalg.norm(diff) / (np.linalg.norm(f_hat * experiment_mask) + 1e-12)
+        flow_misfit = np.linalg.norm(diff) / masked_f_hat_norm
 
-        rel_fro = np.linalg.norm(Drec - D_true) / norm_true
+        rel_fro = np.linalg.norm(d_recovered - D_true) / norm_true
 
         hist_eta.append(eta)
         hist_step.append(step)
@@ -337,14 +342,12 @@ if __name__ == "__main__":
 
         print(
             f"iter={k:03d} eta={eta:.1e} ||G||={gnorm:.3e} relStep={step:.3e} "
-            f"rowErr={row_err:.2e} colErr={col_err:.2e} flowMisfit={flow_misfit:.3e} "
-            f"admmIters={hist_admm_iters[-1]} gradStep={grad_step:.3e} "
-            f"proxCorr={prox_correction:.3e} netStep={net_step_abs:.3e}"
+            f"errRow={row_err:.2e} errCol={col_err:.2e} flowErr={flow_misfit:.3e} "
+            f"admm={hist_admm_iters[-1]} gradStep={grad_step:.3e} "
+            f"proxAdjust={prox_correction:.3e} fullStep={net_step_abs:.3e}"
         )
 
-    # =========================
-    # Графики
-    # =========================
+    # Графики.
     it = np.arange(K)
 
     plt.figure()
@@ -365,8 +368,8 @@ if __name__ == "__main__":
     safe_semilogy(it, hist_row_err, label="ошибка по строкам")
     safe_semilogy(it, hist_col_err, label="ошибка по столбцам")
     plt.xlabel("итерация")
-    plt.ylabel("относительная ошибка маргиналов")
-    plt.title("Ошибки маргиналов (мягкий штраф, ADMM-прокс)")
+    plt.ylabel("относительная ошибка маргиналий")
+    plt.title("Ошибки маргиналий (мягкий штраф, проксимальный шаг ADMM)")
     plt.legend()
     plt.grid(True)
 
@@ -399,20 +402,20 @@ if __name__ == "__main__":
     safe_semilogy(it, hist_eta)
     plt.xlabel("итерация")
     plt.ylabel("использованное eta")
-    plt.title("Размер шага после backtracking")
+    plt.title("Размер шага после подбора")
     plt.grid(True)
 
     plt.figure()
     plt.plot(it, hist_admm_iters)
     plt.xlabel("итерация")
     plt.ylabel("число итераций ADMM")
-    plt.title("Затраты ADMM на один prox-шаг")
+    plt.title("Затраты ADMM на один проксимальный шаг")
     plt.grid(True)
 
     plt.show()
 
     np.set_printoptions(precision=6, suppress=True)
     print("\nD_true (истинная матрица):\n", D_true)
-    print("\nD_recovered (восстановленная матрица):\n", d.reshape(n_nodes, n_nodes))
+    print("\nD_rec (восстановленная матрица):\n", d.reshape(n_nodes, n_nodes))
     print("\nВосстановленные суммы по строкам:", d.reshape(n_nodes, n_nodes).sum(axis=1))
     print("Восстановленные суммы по столбцам:", d.reshape(n_nodes, n_nodes).sum(axis=0))

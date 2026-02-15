@@ -15,11 +15,12 @@ from pytraffic.graph.CSRGraph import CSRGraph
 from pytraffic.models.BRPCost import BRP
 import pytraffic.models.Beckmann as beckmann
 
+EPS = 1e-12  # Численная стабилизация в делениях и нормах.
+MAX_BACKTRACK_TRIALS = 20  # Максимум попыток подбора шага eta на одной итерации.
 
-# ---------------------------
-# Прокс-утилиты (как в прототипе)
-# ---------------------------
+
 def build_L_row_col(n: int):
+    """Строит операторы суммирования по строкам и столбцам для d = vec(D)."""
     nn = n * n
     i = np.repeat(np.arange(n), n)
     j = np.tile(np.arange(n), n)
@@ -31,6 +32,7 @@ def build_L_row_col(n: int):
 
 
 def prox_entropy_nonneg(y: np.ndarray, rho: float, gamma: float) -> np.ndarray:
+    """Проксимальный оператор для gamma * z log z + I[z>=0]."""
     assert rho > 0 and gamma > 0
     scale = rho / gamma
     log_arg = np.log(scale) + scale * y - 1.0
@@ -54,6 +56,7 @@ def prox_g_admm(
     tol_dual: float = 1e-6,
     diag_zero: bool = True,
 ):
+    """ADMM-решение проксимальной подзадачи для d с мягкими маргиналиями."""
     n = ell.size
     nn = n * n
     assert v.shape == (nn,)
@@ -64,9 +67,8 @@ def prox_g_admm(
 
     diag_mask = np.zeros(nn, dtype=bool)
     if diag_zero:
-        for i in range(n):
-            diag_mask[i * n + i] = True
-    idx = np.where(~diag_mask)[0]
+        diag_mask[:: n + 1] = True
+    idx = np.flatnonzero(~diag_mask)
     m = idx.size
 
     Lr = L_row[:, idx].tocsr()
@@ -112,12 +114,55 @@ def prox_g_admm(
 
 
 def init_outer_marginals(ell: np.ndarray, w: np.ndarray, diag_zero: bool = True) -> np.ndarray:
-    D0 = np.outer(ell, w) / (ell.sum() + 1e-12)
+    D0 = np.outer(ell, w) / (ell.sum() + EPS)
     if diag_zero:
         np.fill_diagonal(D0, 0.0)
-        D0 *= ell.sum() / (D0.sum() + 1e-12)
+        D0 *= ell.sum() / (D0.sum() + EPS)
         np.fill_diagonal(D0, 0.0)
     return D0.reshape(-1)
+
+
+def init_truncated_svd_marginals(
+    ell: np.ndarray,
+    w: np.ndarray,
+    rank_keep: int | None = None,
+    sv_noise_std: float = 0.0,
+    random_seed: int | None = None,
+    diag_zero: bool = True,
+) -> np.ndarray:
+    """
+    Альтернативная инициализация OD-матрицы через truncated SVD.
+
+    1) Строим базовую матрицу по внешнему произведению marginals,
+    2) делаем SVD,
+    3) обрезаем хвост сингулярных значений (rank_keep) и/или зашумляем их,
+    4) собираем матрицу обратно, проецируем на неотрицательные значения и нормируем массу.
+    """
+    D0 = np.outer(ell, w) / (ell.sum() + EPS)
+
+    u, s, vt = np.linalg.svd(D0, full_matrices=False)
+    if rank_keep is not None:
+        if rank_keep < 0:
+            raise ValueError("rank_keep должен быть >= 0 или None.")
+        s[rank_keep:] = 0.0
+
+    if sv_noise_std > 0.0:
+        rng = np.random.default_rng(random_seed)
+        s *= 1.0 + rng.normal(0.0, sv_noise_std, size=s.shape)
+        s = np.maximum(s, 0.0)
+
+    D_init = (u * s) @ vt
+    D_init = np.maximum(D_init, 0.0)
+
+    if diag_zero:
+        np.fill_diagonal(D_init, 0.0)
+    D_init *= ell.sum() / (D_init.sum() + EPS)
+    if diag_zero:
+        np.fill_diagonal(D_init, 0.0)
+        D_init *= ell.sum() / (D_init.sum() + EPS)
+        np.fill_diagonal(D_init, 0.0)
+
+    return D_init.reshape(-1)
 
 
 def safe_semilogy(x, y, **kwargs):
@@ -128,9 +173,7 @@ def safe_semilogy(x, y, **kwargs):
         plt.plot(x, y, **kwargs)
 
 
-# ---------------------------
-# Генерация более интересного synthetic-case
-# ---------------------------
+# Сборка синтетического города для эксперимента.
 def _add_bidirectional(edges, u: int, v: int) -> None:
     edges.append((u, v))
     edges.append((v, u))
@@ -144,7 +187,7 @@ def build_synthetic_city():
     for u in range(n_nodes):
         _add_bidirectional(edges, u, (u + 1) % n_nodes)
 
-    # Межрайонные связки и диагональные "быстрые" ребра
+    # Межрайонные связки и диагональные "быстрые" рёбра.
     for u, v in [(0, 4), (1, 5), (2, 6), (3, 7), (0, 2), (1, 3), (4, 6), (5, 7)]:
         _add_bidirectional(edges, u, v)
 
@@ -161,7 +204,7 @@ def build_synthetic_city():
     csr = CSRGraph.from_edges(n_nodes, tail, head)
     m = csr.m
 
-    # Параметры ребер: кольцо медленнее, магистрали быстрее, мосты вместительнее
+    # Параметры рёбер: кольцо медленнее, магистрали быстрее, мосты вместительнее.
     cap = np.full(m, 25.0, dtype=np.float64)
     t0 = np.full(m, 4.0, dtype=np.float64)
     bridge_pairs = {(0, 4), (1, 5), (2, 6), (3, 7)}
@@ -199,16 +242,17 @@ def build_synthetic_od(csr: CSRGraph, t0: np.ndarray):
                 val *= 1.25
             D_true[o, d] = val
 
-    D_true *= 3200.0 / (D_true.sum() + 1e-12)
+    D_true *= 3200.0 / (D_true.sum() + EPS)
     np.fill_diagonal(D_true, 0.0)
     return D_true
 
 
 def build_noisy_observations(flow_true: np.ndarray, rng: np.random.Generator):
+    """Формирует частичные шумные наблюдения по истинному вектору потоков."""
     m = flow_true.size
-    top_frac = 0.4
-    total_frac = 0.6
-    noise_std = 0.03
+    top_frac = 0.4  # Доля самых загруженных рёбер, которые наблюдаем обязательно.
+    total_frac = 0.6  # Итоговая доля наблюдаемых рёбер.
+    noise_std = 0.03  # Относительное СКО мультипликативного шума измерений.
 
     n_top = max(1, int(top_frac * m))
     n_obs = max(n_top, int(total_frac * m))
@@ -233,12 +277,21 @@ def build_noisy_observations(flow_true: np.ndarray, rng: np.random.Generator):
 if __name__ == "__main__":
     rng = np.random.default_rng(42)
 
-    n_nodes, edges, csr, edge_cost, t0 = build_synthetic_city()
+    n_nodes, _, csr, edge_cost, t0 = build_synthetic_city()
     D_true = build_synthetic_od(csr, t0)
 
-    # Генерируем "наблюдения" из истинной OD-матрицы
+    # Настройки расчёта "истинного" потока по D_true.
+    fw_eval_max_iter = 1500  # Предел итераций Frank-Wolfe для эталонного расчёта.
+    fw_eval_rgap_target = 5e-5  # Целевой относительный gap остановки Frank-Wolfe.
+
+    # Формируем "измерения" из истинной OD-матрицы.
     flow_true, _ = beckmann.fw_beckmann(
-        csr, edge_cost, D_true, max_iter=1500, rgap_target=5e-5, verbose=False
+        csr,
+        edge_cost,
+        D_true,
+        max_iter=fw_eval_max_iter,
+        rgap_target=fw_eval_rgap_target,
+        verbose=False,
     )
     f_hat, experiment_mask, observed_edges = build_noisy_observations(flow_true, rng)
 
@@ -246,18 +299,48 @@ if __name__ == "__main__":
     w = D_true.sum(axis=0)
     L_row, L_col = build_L_row_col(n_nodes)
 
-    # Параметры внешнего prox-grad цикла
-    K = 1000
-    eta0 = 8e-5
-    gamma = 5e-3
-    alpha = 220.0
-    rho = 1.0
-    admm_max_iter = 1200
-    admm_tol_pri = 1e-6
-    admm_tol_dual = 1e-6
+    # Параметры внешнего проксимально-градиентного цикла.
+    K = 500  # Количество внешних итераций обновления OD-матрицы.
+    eta0 = 8e-5  # Начальный шаг градиентного шага (до подбора).
+    use_eta_decay = True  # Включать ли плавное уменьшение шага по ходу итераций.
+    eta_decay = 0.02  # Скорость уменьшения: eta_k = eta0 / sqrt(1 + eta_decay * k).
+    gamma = 5e-3  # Вес энтропийной регуляризации в prox-подзадаче.
+    alpha = 220.0  # Вес штрафа за несоблюдение целевых маргиналий.
+    rho = 1.0  # Штраф ADMM для связи d = z.
+    admm_max_iter = 1200  # Максимум внутренних итераций ADMM на один внешний шаг.
+    admm_tol_pri = 1e-6  # Порог остановки ADMM по первичной невязке.
+    admm_tol_dual = 1e-6  # Порог остановки ADMM по двойственной невязке.
+    early_stop_patience = 180  # Сколько итераций ждать улучшения перед досрочной остановкой.
+    early_stop_delta = 1e-5  # Минимальное улучшение flowErr, считаемое значимым.
+
+    # Настройки решателя Бекмана внутри внешнего цикла.
+    fw_inner_alpha = 0.9  # Вес регуляризации в fw_beckmann_regularized_marginal.
+    fw_inner_max_iter = 2000  # Лимит итераций внутреннего Frank-Wolfe-решателя.
+    fw_inner_rgap_target = 5e-5  # Порог gap для внутреннего Frank-Wolfe-решателя.
+
+    # Технический порог приемки prox-шага по суммарной массе спроса.
+    min_total_mass_ratio = 0.4  # Требуем d_try.sum() >= min_total_mass_ratio * sum(ell).
 
     d = init_outer_marginals(ell, w, diag_zero=True)
+
+    """
+    Альтернативное начальное приближение через truncated SVD.
+    Раскомментируйте блок ниже, если хотите использовать его вместо init_outer_marginals.
+    """
+    # d = init_truncated_svd_marginals(
+    #     ell,
+    #     w,
+    #     rank_keep=3,
+    #     sv_noise_std=0.05,
+    #     random_seed=42,
+    #     diag_zero=True,
+    # )
+    
     prev_d = d.copy()
+    best_d = d.copy()
+    best_iter = -1
+    best_flow_misfit = np.inf
+    non_improve_iters = 0
 
     hist_step = []
     hist_gnorm = []
@@ -270,12 +353,14 @@ if __name__ == "__main__":
     hist_grad_step = []
     hist_prox_correction = []
     hist_net_step_abs = []
+    hist_best_flow_misfit = []
 
-    norm_true = np.linalg.norm(D_true) + 1e-12
+    norm_true = np.linalg.norm(D_true) + EPS
+    masked_f_hat_norm = np.linalg.norm(f_hat * experiment_mask) + EPS
 
     print(
-        f"Graph: n_nodes={n_nodes}, directed_edges={csr.m}, "
-        f"observed_edges={int(experiment_mask.sum())}, total_demand={D_true.sum():.1f}"
+        f"Граф: узлов={n_nodes}, направленных рёбер={csr.m}, "
+        f"наблюдаемых рёбер={int(experiment_mask.sum())}, общий спрос={D_true.sum():.1f}"
     )
 
     for k in range(K):
@@ -288,9 +373,9 @@ if __name__ == "__main__":
             Dmat,
             f_hat,
             experiment_mask,
-            alpha=0.9,
-            max_iter=2000,
-            rgap_target=5e-5,
+            alpha=fw_inner_alpha,
+            max_iter=fw_inner_max_iter,
+            rgap_target=fw_inner_rgap_target,
             verbose=False,
         )
         g = grad_F_over_D.reshape(n_nodes, n_nodes)
@@ -298,11 +383,12 @@ if __name__ == "__main__":
         gvec = g.reshape(-1)
         gnorm = np.linalg.norm(g)
 
-        eta = eta0
+        eta_base = eta0 / np.sqrt(1.0 + eta_decay * k) if use_eta_decay else eta0
+        eta = eta_base
         accepted = False
         accepted_v = None
         info = None
-        for _trial in range(20):
+        for _ in range(MAX_BACKTRACK_TRIALS):
             v = d_before_update - eta * gvec
             d_try, info = prox_g_admm(
                 v=v,
@@ -319,7 +405,7 @@ if __name__ == "__main__":
                 tol_dual=admm_tol_dual,
                 diag_zero=True,
             )
-            if np.isfinite(d_try).all() and d_try.sum() > 0.4 * ell.sum():
+            if np.isfinite(d_try).all() and d_try.sum() > min_total_mass_ratio * ell.sum():
                 d = d_try
                 accepted_v = v
                 accepted = True
@@ -329,18 +415,16 @@ if __name__ == "__main__":
         if not accepted:
             eta0 *= 0.5
 
-        step = np.linalg.norm(d - prev_d) / (np.linalg.norm(prev_d) + 1e-12)
+        step = np.linalg.norm(d - prev_d) / (np.linalg.norm(prev_d) + EPS)
         prev_d = d.copy()
         grad_step = np.linalg.norm(eta * gvec)
         prox_correction = np.linalg.norm(d - accepted_v) if accepted_v is not None else np.nan
         net_step_abs = np.linalg.norm(d - d_before_update)
 
         Drec = d.reshape(n_nodes, n_nodes)
-        row_err = np.linalg.norm(Drec.sum(axis=1) - ell) / (np.linalg.norm(ell) + 1e-12)
-        col_err = np.linalg.norm(Drec.sum(axis=0) - w) / (np.linalg.norm(w) + 1e-12)
-        flow_misfit = np.linalg.norm((flow - f_hat) * experiment_mask) / (
-            np.linalg.norm(f_hat * experiment_mask) + 1e-12
-        )
+        row_err = np.linalg.norm(Drec.sum(axis=1) - ell) / (np.linalg.norm(ell) + EPS)
+        col_err = np.linalg.norm(Drec.sum(axis=0) - w) / (np.linalg.norm(w) + EPS)
+        flow_misfit = np.linalg.norm((flow - f_hat) * experiment_mask) / masked_f_hat_norm
         rel_fro = np.linalg.norm(Drec - D_true) / norm_true
 
         hist_step.append(step)
@@ -354,22 +438,46 @@ if __name__ == "__main__":
         hist_grad_step.append(grad_step)
         hist_prox_correction.append(prox_correction)
         hist_net_step_abs.append(net_step_abs)
+        if flow_misfit + early_stop_delta < best_flow_misfit:
+            best_flow_misfit = flow_misfit
+            best_d = d.copy()
+            best_iter = k
+            non_improve_iters = 0
+        else:
+            non_improve_iters += 1
+        hist_best_flow_misfit.append(best_flow_misfit)
 
         print(
             f"iter={k:03d} eta={eta:.1e} ||G||={gnorm:.3e} relStep={step:.3e} "
-            f"rowErr={row_err:.2e} colErr={col_err:.2e} flowMisfit={flow_misfit:.3e} "
-            f"relOD={rel_fro:.3e} admmIters={hist_admm_iters[-1]} "
-            f"gradStep={grad_step:.3e} proxCorr={prox_correction:.3e} netStep={net_step_abs:.3e}"
+            f"errRow={row_err:.2e} errCol={col_err:.2e} flowErr={flow_misfit:.3e} "
+            f"relOD={rel_fro:.3e} admm={hist_admm_iters[-1]} "
+            f"gradStep={grad_step:.3e} proxAdjust={prox_correction:.3e} fullStep={net_step_abs:.3e}"
         )
+        if non_improve_iters >= early_stop_patience:
+            print(
+                f"Досрочная остановка на iter={k:03d}: невязка по потокам "
+                f"не улучшалась хотя бы на {early_stop_delta:.1e} в течение {early_stop_patience} итераций."
+            )
+            break
 
-    D_rec = d.reshape(n_nodes, n_nodes)
+    D_rec = best_d.reshape(n_nodes, n_nodes)
+    selected_iter = best_iter
+    selected_score_name = "flowErr"
+    selected_score_value = best_flow_misfit
     flow_rec, _ = beckmann.fw_beckmann(
-        csr, edge_cost, D_rec, max_iter=1500, rgap_target=5e-5, verbose=False
+        csr,
+        edge_cost,
+        D_rec,
+        max_iter=fw_eval_max_iter,
+        rgap_target=fw_eval_rgap_target,
+        verbose=False,
     )
+    row_err_selected = np.linalg.norm(D_rec.sum(axis=1) - ell) / (np.linalg.norm(ell) + EPS)
+    col_err_selected = np.linalg.norm(D_rec.sum(axis=0) - w) / (np.linalg.norm(w) + EPS)
+    flow_mis_selected = np.linalg.norm((flow_rec - f_hat) * experiment_mask) / masked_f_hat_norm
+    rel_od_selected = np.linalg.norm(D_rec - D_true) / norm_true
 
-    # ---------------------------
-    # Графики
-    # ---------------------------
+    # Графики.
     it = np.arange(len(hist_step))
 
     plt.figure()
@@ -390,14 +498,15 @@ if __name__ == "__main__":
     safe_semilogy(it, hist_row_err, label="ошибка по строкам")
     safe_semilogy(it, hist_col_err, label="ошибка по столбцам")
     plt.xlabel("итерация")
-    plt.ylabel("относительная ошибка маргиналов")
-    plt.title("Сходимость по маргиналам")
+    plt.ylabel("относительная ошибка маргиналий")
+    plt.title("Сходимость по маргиналиям")
     plt.legend()
     plt.grid(True)
 
     plt.figure()
     safe_semilogy(it, hist_flow_misfit, label="невязка по наблюдаемым потокам")
     safe_semilogy(it, hist_rel_fro, label="ошибка OD-матрицы")
+    safe_semilogy(it, hist_best_flow_misfit, label="лучшее значение невязки по потокам")
     plt.xlabel("итерация")
     plt.ylabel("относительная ошибка")
     plt.title("Качество восстановления")
@@ -410,21 +519,21 @@ if __name__ == "__main__":
     safe_semilogy(it, hist_net_step_abs, label="||d_new - d_old||")
     plt.xlabel("итерация")
     plt.ylabel("абсолютная величина шага")
-    plt.title("Кто двигает итерацию: градиент или prox")
+    plt.title("Что сильнее влияет на шаг: градиент или проксимальное обновление")
     plt.legend()
     plt.grid(True)
 
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))
     im0 = ax[0].imshow(D_true, cmap="viridis")
     ax[0].set_title("D_true")
-    ax[0].set_xlabel("destination")
-    ax[0].set_ylabel("origin")
+    ax[0].set_xlabel("пункт назначения")
+    ax[0].set_ylabel("источник")
     plt.colorbar(im0, ax=ax[0], fraction=0.046)
 
     im1 = ax[1].imshow(D_rec, cmap="viridis")
-    ax[1].set_title("D_recovered")
-    ax[1].set_xlabel("destination")
-    ax[1].set_ylabel("origin")
+    ax[1].set_title("D_rec")
+    ax[1].set_xlabel("пункт назначения")
+    ax[1].set_ylabel("источник")
     plt.colorbar(im1, ax=ax[1], fraction=0.046)
     plt.tight_layout()
 
@@ -441,18 +550,31 @@ if __name__ == "__main__":
     plt.grid(True)
 
     np.set_printoptions(precision=4, suppress=True)
-    print("\nFinal metrics:")
-    print(f"  rowErr={hist_row_err[-1]:.4e} colErr={hist_col_err[-1]:.4e}")
-    print(f"  flowMisfit={hist_flow_misfit[-1]:.4e} relOD={hist_rel_fro[-1]:.4e}")
+    print("\nИтоговые метрики:")
+    print(f"  errRow(last)={hist_row_err[-1]:.4e} errCol(last)={hist_col_err[-1]:.4e}")
+    print(f"  flowErr(last)={hist_flow_misfit[-1]:.4e} relOD(last)={hist_rel_fro[-1]:.4e}")
+    print(f"  best_iter_by_flow={best_iter:03d} best_flowErr={best_flow_misfit:.4e}")
+    print(
+        f"  selected_solution: iter={selected_iter:03d} "
+        f"{selected_score_name}={selected_score_value:.4e}"
+    )
+    print(
+        f"  selected_metrics: errRow={row_err_selected:.4e} errCol={col_err_selected:.4e} "
+        f"flowErr={flow_mis_selected:.4e} relOD={rel_od_selected:.4e}"
+    )
+    print(
+        f"  eta_mode={'decay' if use_eta_decay else 'const'} "
+        f"(eta0={eta0:.1e}, eta_decay={eta_decay:.2e})"
+    )
     print(f"  observed_edges={obs.size}/{csr.m}")
     print(f"  observed_edge_indices={obs.tolist()}")
     print("\nD_true:")
     print(D_true)
-    print("\nD_recovered:")
+    print("\nD_rec:")
     print(D_rec)
-    print("\nRow sums (true):", D_true.sum(axis=1))
-    print("Row sums (recovered):", D_rec.sum(axis=1))
-    print("\nCol sums (true):", D_true.sum(axis=0))
-    print("Col sums (recovered):", D_rec.sum(axis=0))
+    print("\nСуммы по строкам (истинные):", D_true.sum(axis=1))
+    print("Суммы по строкам (восстановленные):", D_rec.sum(axis=1))
+    print("\nСуммы по столбцам (истинные):", D_true.sum(axis=0))
+    print("Суммы по столбцам (восстановленные):", D_rec.sum(axis=0))
 
     plt.show()

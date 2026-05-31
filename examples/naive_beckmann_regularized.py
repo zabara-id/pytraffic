@@ -69,5 +69,5 @@ if __name__ == "__main__":
         print(f"{tail[e]}->{head[e]}\tflow_r={flow[e]:.3f}\tflow_e={flow_eq[e]:.3f}\tdiff={flow[e]-flow_eq[e]:.3f}")    
 
     # Относительная ошибка градиентов
-    rel_err_gradient = np.linalg.norm(np.reshape(gradient_F, shape=gradient_F_new.shape) - gradient_F_new) / np.linalg.norm(gradient_F_new)
+    rel_err_gradient = np.linalg.norm(gradient_F - gradient_F_new) / np.linalg.norm(gradient_F_new)
     print("Gradient rel error = ", rel_err_gradient)

@@ -285,4 +285,5 @@ def fw_beckmann_regularized_new_gradient(
     # Это верно в случае, когда оптимальный путь уникален. Если оптимальных путей больше, то кажется, что функция
     # недифференцируема в этом месте.
     
-    return flow, gradient, gradint_of_optimal_potential_value
+    return flow, gradient, np.reshape(gradint_of_optimal_potential_value, \
+                shape=(gradint_of_optimal_potential_value.shape[0] * gradint_of_optimal_potential_value.shape[1],))

@@ -85,6 +85,30 @@ class CSRGraph:
                     heapq.heappush(pq, (nd, v))
 
         return dist, pe
+
+    def all_pairs_shortest_distances(self, weight: np.ndarray) -> np.ndarray:
+        """
+        Матрица кратчайших расстояний между всеми парами вершин.
+
+        weight : (m,) веса рёбер
+
+        return:
+          dist_matrix[o, d] — кратчайшее расстояние от o до d
+          (np.inf для недостижимых вершин)
+        """
+        weight = np.asarray(weight, dtype=np.float64)
+        if weight.shape != (self.m,):
+            raise ValueError(
+                f"weight must have shape ({self.m},), got {weight.shape}"
+            )
+        if np.any(weight < 0):
+            raise ValueError("Dijkstra requires non-negative edge weights.")
+
+        dist_matrix = np.full((self.n, self.n), np.inf, dtype=np.float64)
+        for source in range(self.n):
+            dist_matrix[source], _ = self.dijkstra(weight, source)
+
+        return dist_matrix
     
     def to_networkx(self):
         import networkx as nx
@@ -98,4 +122,3 @@ class CSRGraph:
                 G.add_edge(u, v, eid=int(eid))
 
         return G
-

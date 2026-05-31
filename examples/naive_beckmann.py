@@ -6,9 +6,9 @@ PYTRAFFIC_DIR = ROOT_DIR / "src" / "pytraffic"
 sys.path.insert(0, str(PYTRAFFIC_DIR))
 
 import numpy as np
-from graph.CSRGraph import CSRGraph
-from models.BRPCost import BRP
-import models.Beckmann as beckmann
+from pytraffic.graph.CSRGraph import CSRGraph
+from pytraffic.models.BRPCost import BRP
+import pytraffic.models.Beckmann as beckmann
 
 # ============================================================
 # Example

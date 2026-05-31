@@ -126,6 +126,7 @@ def fw_beckmann(
     return flow, gradient
 
 
+# НУЖНА ЭТА !!!
 def fw_beckmann_regularized(
     csr: CSRGraph,
     edge_cost,

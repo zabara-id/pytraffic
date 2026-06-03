@@ -46,24 +46,30 @@ if __name__ == "__main__":
 
     # Пусть нам известны какие-то потоки на первых двух рёбрах 
     # (тут в примере важно, чтобы эти потоки не выходили за максимальную корреспонденцию, и наче мы чето странное решаем)
-
     f_hat = np.zeros_like(cap)
-    f_hat[0] = 90
+    f_hat[0] = 94
     f_hat[1] = 67
     experiment_mask = np.zeros_like(f_hat)
     experiment_mask[0] = 1
     experiment_mask[1] = 1
-
-    flow, gradient, gradient_for_optimal_potential_value_over_D \
-        = beckmann.fw_beckmann_regularized_marginal(csr, edge_cost, D, f_hat, experiment_mask, alpha=0.9, max_iter=5000)
-
+    
+    # Расчет по старой функции
+    flow, gradient, gradient_F \
+        = beckmann.fw_beckmann_regularized(csr, edge_cost, D, f_hat, experiment_mask, alpha=1, rgap_target=1e-6, max_iter=5000)
+    
+    # Расчет по новой функции
+    flow, gradient, gradient_F_new \
+        = beckmann.fw_beckmann_regularized_new_gradient(csr, edge_cost, D, f_hat, experiment_mask, alpha=1, rgap_target=1e-6, max_iter=5000)
+    
     # А теперь решение классической задачи (равновесное распределение потоков)
-
     flow_eq, gradient_eq = beckmann.fw_beckmann(csr, edge_cost, D)
 
-    print("Difference between requlirized and equilibriul solution")
+    print("Difference between requlirized and equilibrium solution")
     for e in range(csr.m):
         print(f"{tail[e]}->{head[e]}\tflow_r={flow[e]:.3f}\tflow_e={flow_eq[e]:.3f}\tdiff={flow[e]-flow_eq[e]:.3f}") 
 
     print(gradient_for_optimal_potential_value_over_D.shape)
 
+    # Относительная ошибка градиентов
+    rel_err_gradient = np.linalg.norm(gradient_F - gradient_F_new) / np.linalg.norm(gradient_F_new)
+    print("Gradient rel error = ", rel_err_gradient)

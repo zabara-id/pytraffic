@@ -25,20 +25,10 @@ def aon_assign(csr: CSRGraph, weight: np.ndarray, D: np.ndarray) -> Tuple[np.nda
     return:
       y       : (m,) AON flows
       sp_cost : sum_{o,d} D[o,d] * dist_o[d]
+      gradient: градиент AON решение по матрице корреспонденции 
+                (необходимо в расчете градиента оптимальной точки в модели Бэкмана)
     """
-    weight = np.asarray(weight, dtype=np.float64)
-    D = np.asarray(D, dtype=np.float64)
 
-    if D.shape != (csr.n, csr.n):
-        raise ValueError(f"D must have shape ({csr.n},{csr.n}), got {D.shape}")
-
-    return _aon_assign_py(csr, weight, D)
-
-
-def _aon_assign_py(csr: CSRGraph, weight: np.ndarray, D: np.ndarray) -> Tuple[np.ndarray, float]:
-    """
-    Pure NumPy implementation (fallback when numba is unavailable).
-    """
     weight = np.asarray(weight, dtype=np.float64)
     D = np.asarray(D, dtype=np.float64)
     gradient = np.zeros(shape=(csr.m, csr.n * csr.n))
@@ -77,7 +67,7 @@ def _aon_assign_py(csr: CSRGraph, weight: np.ndarray, D: np.ndarray) -> Tuple[np
                 cur = int(csr.tail[e])
 
     return solution, total_assignment_cost, gradient
-
+    
 
 # ============================================================
 # Frank–Wolfe (Beckmann UE)
@@ -91,8 +81,8 @@ def fw_beckmann(
     verbose=True,
 ):
     """
-    Метод Франк-Вульфа для решения задачи TA по модели Бэкманна. Считает само решение и его 
-    градиент по матрице корреспонденции.
+    Метод Франк-Вульфа для решения задачи TA по модели Бэкманна. 
+    Считает само решение и его градиент по матрице корреспонденции для классческий модели Бэкманна
 
     csr: CSRGraph -- представление графа в формате CSR для нахождения исходящих рёбер,
     edge_cost: callable -- функция стоимости ребра в зависимости от нагрузки,
@@ -139,13 +129,15 @@ def fw_beckmann_regularized(
     verbose=True,
 ):
     """
-    Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. Считает само решение и его 
-    градиент по матрице корреспонденции.
+    Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
+    Регуляризация записывается в виде $beckman_potential + \alpha \| f - \hat{f}\|_{2}^2$ и фактически означает,
+    что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.
+    Считает само решение и его градиент по матрице корреспонденции.
 
     csr: CSRGraph -- представление графа в формате CSR для нахождения исходящих рёбер,
     edge_cost: callable -- функция стоимости ребра в зависимости от нагрузки,
     D: np.ndarray (n, n), n -- количество вершин в графе (они все и origin, и destination),
-    f_hat: np.ndarray (m, ) -- вектор из известных потоков на рёбрах, входит в регуляризатор (тут не обязательно все компоненты будут использованы)
+    f_hat: np.ndarray (m, ) -- вектор из известных потоков на рёбрах, входит в регуляризатор
     experiment_mask: np.ndarray (m, ) -- вектора-маска на те рёбра, на которых нам реально известны потоки
     alpha: np.float64 -- параметр регуляризации к модели Бэкманна
     """
@@ -154,7 +146,6 @@ def fw_beckmann_regularized(
     # (начальное приближение можно брать нулём, а можно как решение равновесной задачи)
     # мне кажется, что взять с качестве начального приближения решение модели бэкмана будет нормальной темой,
     # так как этот вектор сразу в допустимом множестве, а нулевой -- нет
-    flow = np.zeros(csr.m, dtype=np.float64)
     flow, _ = fw_beckmann(csr, edge_cost, D, max_iter=500, rgap_target=1e-4, verbose=False)
     # приближение к градиенту решения задачи минимизации по матрице корреспонденции
     gradient = np.zeros(shape=(csr.m, csr.n * csr.n))
@@ -185,7 +176,7 @@ def fw_beckmann_regularized(
     
         y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
 
-        # Шаг аглоритма Франка-Вульфа
+        # Шаг аглоритма Франк-Вульфа
         gamma = 2.0 / (k + 2.0)
         flow = (1.0 - gamma) * flow + gamma * y
         gradient = (1.0 - gamma) * gradient + gamma * gradient_k
@@ -209,8 +200,7 @@ def fw_beckmann_regularized(
     
     return flow, gradient, gradint_of_optimal_potential_value
 
-# Маргинальная функция
-def fw_beckmann_regularized_marginal(
+def fw_beckmann_regularized_new_gradient(
     csr: CSRGraph,
     edge_cost,
     D : np.ndarray,
@@ -221,27 +211,60 @@ def fw_beckmann_regularized_marginal(
     rgap_target=1e-4,
     verbose=True,
 ):
- 
-    flow = np.zeros(csr.m, dtype=np.float64)
+    """
+    Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
+    Регуляризация записывается в виде $beckman_potential + \alpha \| f - \hat{f}\|_{2}^2$ и фактически означает,
+    что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.
+    Считает само решение и его градиент (новым способом) по матрице корреспонденции.
+
+    csr: CSRGraph -- представление графа в формате CSR для нахождения исходящих рёбер,
+    edge_cost: callable -- функция стоимости ребра в зависимости от нагрузки,
+    D: np.ndarray (n, n), n -- количество вершин в графе (они все и origin, и destination),
+    f_hat: np.ndarray (m, ) -- вектор из известных потоков на рёбрах, входит в регуляризатор
+    experiment_mask: np.ndarray (m, ) -- вектора-маска на те рёбра, на которых нам реально известны потоки
+    alpha: np.float64 -- параметр регуляризации к модели Бэкманна
+    """
+
+    # приближение к решению задачи минимизации 
+    # (начальное приближение можно брать нулём, а можно как решение равновесной задачи)
+    # мне кажется, что взять с качестве начального приближения решение модели бэкмана будет нормальной темой,
+    # так как этот вектор сразу в допустимом множестве, а нулевой -- нет
     flow, _ = fw_beckmann(csr, edge_cost, D, max_iter=500, rgap_target=1e-4, verbose=False)
+    # приближение к градиенту решения задачи минимизации по матрице корреспонденции
     gradient = np.zeros(shape=(csr.m, csr.n * csr.n))
-    gradint_of_optimal_potential_value = np.zeros(shape=csr.n * csr.n)
 
     for k in range(1, max_iter + 1):
-        # Новый рачет поля стоимости на ребрах, с учетом регуляризации прямо самих потоков
-        corrected_flow = alpha * experiment_mask * (f_hat - flow) + flow
-        # print(corrected_flow[0])
-        edge_cost_field = edge_cost(corrected_flow)
+        # Решаем ЛП на заданном множестве 
+        # Из-за регуляризации как раз приедет коррекция стоимости рёбер на величину alpha * experimental_mask * (f - f_hat)
+        # Получается, что если поток f на ребре не дотягивает до экспериментального, то стоимость движения по ребру уменьшается,
+        # что дает больший поток на этом ребре (вероятно). Если f больше экспериментального, то стоимость увеличивается и поездка по ребру становится "дорогой",
+        # так что на этой итерации тут мало кто поедет
+        
+        # TODO: Возможно исходя из такой трактовки следует как-то перепридумать регуляризатор, но пока это в будущем
+
+        # Новый рачет поля стоимости на ребрах, с учетом регуляризации
+        additional_cost =  alpha * experiment_mask * (flow - f_hat)
+        edge_cost_field = edge_cost(flow) + additional_cost
+
+        # АААААААААААААААААА: В этом ифе сделана дофольно маргинальная вещь
+        if (np.min(edge_cost_field) < 0):
+            idx = np.argmin(edge_cost_field)
+            warnings.warn(f"стоимость ребра {idx} на {k} итерации оказалась отрицательной, t(f_e) = {edge_cost(flow)[idx]}, add_cost = {additional_cost[idx]}. \
+                             Возможно, необходимо уменьшить регуляризатор alpha")
+            # Если уж стоимость ребра оказалась отрицательной, то будет считать, что по этому ребру стоимость просто нуль
+            # ААААААААААААААААААААААААААА: Но это влияет на функционал, он должен быть модифицирован
+            edge_cost_field[edge_cost_field < 0] = 0
     
         y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
 
-        # Шаг аглоритма Франка-Вульфа
+        # Шаг аглоритма Франк-Вульфа
         gamma = 2.0 / (k + 2.0)
         flow = (1.0 - gamma) * flow + gamma * y
         gradient = (1.0 - gamma) * gradient + gamma * gradient_k
 
-        corrected_flow = flow - alpha * experiment_mask * (flow - f_hat)
-        new_edge_cost_field = edge_cost(corrected_flow)
+        new_edge_cost_field = edge_cost(flow) + alpha * experiment_mask * (flow - f_hat)
+        # AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA: И вот следующая строка тоже очень маргинальная
+        new_edge_cost_field[new_edge_cost_field < 0] = 0
         rg = stop_criterion(flow, new_edge_cost_field, total_cost_k)
 
         # Это просто полезный вывод
@@ -252,7 +275,16 @@ def fw_beckmann_regularized_marginal(
             break
 
     # Расчет градиента от функции F(D)
-    beckmann_part = edge_cost(flow + alpha * experiment_mask * (f_hat - flow))
-    gradint_of_optimal_potential_value = ((beckmann_part) @ gradient)
+    # 1. Считаем равновесные цена ребёр, с учетом модификации по невязке
+    equilibrium_edge_costs = edge_cost(flow) + alpha * experiment_mask * (flow - f_hat)
+    # 2. Считаем кратчайшие пути между всеми вершинами
+    gradint_of_optimal_potential_value = csr.all_pairs_shortest_distances(equilibrium_edge_costs)
+    # Это и есть градиент по матрице корреспонденции, потому что добавленная малая корреспонденция delta_{ij}
+    # поедет по кратчайшему пути между вершинами i и j, а значит, увеличатся потоки на инцидентных этому пути 
+    # рёбрах и величины sigma_i будет изменяться на edge_k_cost(f_k + delta_{ij}).
+    # 
+    # Это верно в случае, когда оптимальный путь уникален. Если оптимальных путей больше, то кажется, что функция
+    # недифференцируема в этом месте.
     
-    return flow, gradient, gradint_of_optimal_potential_value
+    return flow, gradient, np.reshape(gradint_of_optimal_potential_value, \
+                shape=(gradint_of_optimal_potential_value.shape[0] * gradint_of_optimal_potential_value.shape[1],))

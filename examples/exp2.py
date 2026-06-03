@@ -376,7 +376,7 @@ def run_original_formulation(common: dict[str, object]) -> dict[str, object]:
     experiment_mask = np.ones_like(reference_flow)
 
     D = common["D_initial"].copy()
-    regularized_flow, _, regularized_grad = beckmann.fw_beckmann_regularized(
+    regularized_flow, _, regularized_grad = beckmann.fw_beckmann_regularized_new_gradient(
         csr,
         edge_cost,
         D,
@@ -396,7 +396,7 @@ def run_original_formulation(common: dict[str, object]) -> dict[str, object]:
         row_target,
         col_target,
     )
-    result = empty_result("original: regularized Beckmann + entropy + marginal penalty", D, objective, common)
+    result = empty_result("original: regularized Beckmann, new gradient + entropy + marginal penalty", D, objective, common)
 
     first_moment = np.zeros_like(D)
     second_moment = np.zeros_like(D)
@@ -425,7 +425,7 @@ def run_original_formulation(common: dict[str, object]) -> dict[str, object]:
             rgap_target=FW_RGAP,
             verbose=False,
         )
-        regularized_flow, _, regularized_grad = beckmann.fw_beckmann_regularized(
+        regularized_flow, _, regularized_grad = beckmann.fw_beckmann_regularized_new_gradient(
             csr,
             edge_cost,
             D,

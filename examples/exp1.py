@@ -1,3 +1,5 @@
+"""Постановка 1 модифицированная: потоковая невязка + энтропия без референсной матрицы."""
+
 import csv
 import io
 import re
@@ -27,10 +29,10 @@ DEMAND_FILE = DEFAULT_DATA_DIR / "SiouxFalls_od.csv"
 
 # Воспроизводимость и начальное приближение.
 SEED = 42
-INITIAL_NOISE = 1.5
+INITIAL_NOISE = 0.6
 
 # Внешний Adam по прямой невязке потоков. Маргиналии держим жестко через IPF.
-OUTER_ITERS = 300
+OUTER_ITERS = 600
 LEARNING_RATE = 4.0
 LEARNING_RATE_DECAY = 0.01
 BETA1 = 0.9

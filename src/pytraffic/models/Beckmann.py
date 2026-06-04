@@ -2,6 +2,7 @@ import numpy as np
 import warnings
 
 from pytraffic.graph.CSRGraph import CSRGraph
+from pytraffic.models.BRPCost import BRP
 from typing import Tuple
 
 def stop_criterion(flow, time, sp_cost):
@@ -285,6 +286,81 @@ def fw_beckmann_regularized_new_gradient(
     # 
     # Это верно в случае, когда оптимальный путь уникален. Если оптимальных путей больше, то кажется, что функция
     # недифференцируема в этом месте.
+    
+    return flow, gradient, np.reshape(gradint_of_optimal_potential_value, \
+                shape=(gradint_of_optimal_potential_value.shape[0] * gradint_of_optimal_potential_value.shape[1],))
+
+
+def fw_beckmann_regularized_new_gradient_new_cost(
+    csr: CSRGraph,
+    edge_cost,
+    D : np.ndarray,
+    f_hat, 
+    experiment_mask,
+    alpha = 1e-2,
+    max_iter=500,
+    rgap_target=1e-4,
+    verbose=True,
+):
+    """
+    Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
+    Регуляризация записывается в виде $beckman_potential + \alpha \| f - \hat{f}\|_{2}^2$ и фактически означает,
+    что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.
+    Считает само решение и его градиент (новым способом) по матрице корреспонденции.
+
+    csr: CSRGraph -- представление графа в формате CSR для нахождения исходящих рёбер,
+    edge_cost: callable -- функция стоимости ребра в зависимости от нагрузки, и от референсного потока
+    D: np.ndarray (n, n), n -- количество вершин в графе (они все и origin, и destination),
+    f_hat: np.ndarray (m, ) -- вектор из известных потоков на рёбрах, входит в регуляризатор
+    experiment_mask: np.ndarray (m, ) -- вектора-маска на те рёбра, на которых нам реально известны потоки
+    alpha: np.float64 -- параметр регуляризации к модели Бэкманна
+    """
+
+    # приближение к решению задачи минимизации 
+    # (начальное приближение можно брать нулём, а можно как решение равновесной задачи)
+    # мне кажется, что взять с качестве начального приближения решение модели бэкмана будет нормальной темой,
+    # так как этот вектор сразу в допустимом множестве, а нулевой -- нет
+    simple_edge_cost = BRP(edge_cost.cap, edge_cost.t0, edge_cost.alpha, edge_cost.beta)
+    flow, _ = fw_beckmann(csr, simple_edge_cost, D, max_iter=500, rgap_target=1e-4, verbose=False)
+    # приближение к градиенту решения задачи минимизации по матрице корреспонденции
+    gradient = np.zeros(shape=(csr.m, csr.n * csr.n))
+
+    for k in range(1, max_iter + 1):
+        # Решаем ЛП на заданном множестве 
+
+        # Новый рачет поля стоимости на ребрах, с учетом регуляризации (это просто изменённая функция цены)
+        # Предполагается, что цена всегда неотрицательна
+        edge_cost_field = edge_cost(flow, f_hat, experiment_mask)
+
+        y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
+
+        # Шаг аглоритма Франк-Вульфа
+        gamma = 2.0 / (k + 2.0)
+        flow = (1.0 - gamma) * flow + gamma * y
+        gradient = (1.0 - gamma) * gradient + gamma * gradient_k
+
+        new_edge_cost_field = edge_cost(flow, f_hat, experiment_mask)
+
+        rg = stop_criterion(flow, new_edge_cost_field, total_cost_k)
+
+        # Это просто полезный вывод
+        if verbose and (k == 1 or k % 10 == 0 or rg <= rgap_target):
+            print(f"iter={k:4d}  gamma={gamma:.6f}  rgap={rg:.3e} grad_norm={np.linalg.norm(gradient):.6f}")
+
+        if rg <= rgap_target:
+            break
+
+    # Расчет градиента от функции F(D)
+    # 1. Считаем равновесные цена ребёр (по модифицированной цене)
+    equilibrium_edge_costs = edge_cost(flow, f_hat, experiment_mask)
+    # 2. Считаем кратчайшие пути между всеми вершинами
+    gradint_of_optimal_potential_value = csr.all_pairs_shortest_distances(equilibrium_edge_costs)
+    # Это и есть градиент по матрице корреспонденции, потому что добавленная малая корреспонденция delta_{ij}
+    # поедет по кратчайшему пути между вершинами i и j, а значит, увеличатся потоки на инцидентных этому пути 
+    # рёбрах и величины sigma_i будет изменяться на edge_k_cost(f_k + delta_{ij}).
+    # 
+    # Это верно в случае, когда оптимальный путь уникален. Если оптимальных путей больше, то кажется, что функция
+    # недифференцируема в этом месте (в наверное рассчитанный вектор будет субградиентом).
     
     return flow, gradient, np.reshape(gradint_of_optimal_potential_value, \
                 shape=(gradint_of_optimal_potential_value.shape[0] * gradint_of_optimal_potential_value.shape[1],))

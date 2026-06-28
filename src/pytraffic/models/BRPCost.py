@@ -26,3 +26,6 @@ class BRP:
         # Матрицу получаем через np.diag(result)
         x = flow / self.cap
         return (self.t0 * self.alpha * self.beta / self.cap) * x**(self.beta - 1)
+
+    def integral(self, flow):
+        return flow + self.alpha * np.pow(flow, self.beta + 1) / self.beta

@@ -34,6 +34,7 @@ from examples.experiment_utils import (
     record_iteration,
 )
 from pytraffic.models.BRPCost import BRP
+from pytraffic.models.MBRPCost import MBRP
 
 
 EPS = 1e-12
@@ -42,10 +43,10 @@ EPS = 1e-12
 NET_FILE = DEFAULT_NET_FILE
 DEMAND_FILE = DEFAULT_DEMAND_FILE
 SEED = 42
-INITIAL_NOISE = 0.6
+INITIAL_NOISE = 0.3
 
 # Внешний Adam. Шаг настроен отдельно из-за другого масштаба градиента.
-OUTER_ITERS = 600
+OUTER_ITERS = 200
 LEARNING_RATE = 2.0
 LEARNING_RATE_DECAY = 0.01
 BETA1 = 0.9
@@ -79,18 +80,8 @@ def entropy_gradient(D: np.ndarray) -> np.ndarray:
     return ENTROPY_WEIGHT * np.log(np.maximum(D, EPS))
 
 
-def bpr_potential_value(edge_cost: BRP, flow: np.ndarray) -> float:
-    """Значение потенциала Бекмана для BPR-функций стоимости."""
-    flow = np.maximum(np.asarray(flow, dtype=np.float64), 0.0)
-    capacity = np.asarray(edge_cost.cap, dtype=np.float64)
-    free_flow_time = np.asarray(edge_cost.t0, dtype=np.float64)
-    bpr_weight = np.asarray(edge_cost.alpha, dtype=np.float64)
-    bpr_power = np.asarray(edge_cost.beta, dtype=np.float64)
-    relative_flow = flow / capacity
-    edge_potential = free_flow_time * (
-        flow + bpr_weight * capacity * relative_flow ** (bpr_power + 1.0) / (bpr_power + 1.0)
-    )
-    return float(np.sum(edge_potential))
+def beckmann_potential(edge_cost, flow: np.ndarray) -> float:
+    return float(np.sum(edge_cost.integral(flow)))
 
 
 def marginal_penalty_value(D: np.ndarray, row_target: np.ndarray, col_target: np.ndarray) -> float:
@@ -111,7 +102,7 @@ def marginal_penalty_gradient(D: np.ndarray, row_target: np.ndarray, col_target:
 
 
 def objective_value(
-    edge_cost: BRP,
+    edge_cost,
     D: np.ndarray,
     regularized_flow: np.ndarray,
     reference_flow: np.ndarray,
@@ -119,12 +110,8 @@ def objective_value(
     row_target: np.ndarray,
     col_target: np.ndarray,
 ) -> float:
-    """Целевая функция второй постановки."""
-    observed_flow_residual = experiment_mask * (regularized_flow - reference_flow)
-    flow_penalty = 0.5 * FLOW_REGULARIZATION * np.dot(observed_flow_residual, observed_flow_residual)
     return float(
-        bpr_potential_value(edge_cost, regularized_flow)
-        + flow_penalty
+        beckmann_potential(edge_cost, regularized_flow)
         + entropy_value(D)
         + marginal_penalty_value(D, row_target, col_target)
     )
@@ -132,12 +119,12 @@ def objective_value(
 
 def objective_gradient(
     D: np.ndarray,
-    regularized_objective_gradient: np.ndarray,
+    objective_gradient: np.ndarray,
     row_target: np.ndarray,
     col_target: np.ndarray,
 ) -> np.ndarray:
     """Градиент второй целевой функции по OD-матрице."""
-    gradient = regularized_objective_gradient.reshape(D.shape).copy()
+    gradient = objective_gradient.reshape(D.shape).copy()
     gradient += entropy_gradient(D)
     gradient += marginal_penalty_gradient(D, row_target, col_target)
     np.fill_diagonal(gradient, 0.0)
@@ -176,101 +163,45 @@ def run_experiment() -> ExperimentResult:
         robust_metric_num_edges=ROBUST_METRIC_NUM_EDGES,
         robust_metric_fw_iters=ROBUST_METRIC_FW_ITERS,
     )
-    # Сейчас наблюдаем потоки на всех ребрах. Маска позволяет ограничить набор наблюдений.
     experiment_mask = np.ones_like(data.reference_flow)
-    D = data.D_initial.copy()
-    regularized_flow, _, regularized_gradient = beckmann.fw_beckmann_regularized_new_gradient(
-        data.csr,
-        data.edge_cost,
-        D,
-        data.reference_flow,
-        experiment_mask,
-        alpha=FLOW_REGULARIZATION,
-        max_iter=FW_INNER_ITERS,
-        rgap_target=FW_RGAP,
-        verbose=False,
-    )
-    flow, _ = beckmann.fw_beckmann(
-        data.csr,
-        data.edge_cost,
-        D,
-        max_iter=FW_INNER_ITERS,
-        rgap_target=FW_RGAP,
-        verbose=False,
-    )
-    print_experiment_header(data, flow)
-    objective = objective_value(
-        data.edge_cost,
-        D,
-        regularized_flow,
-        data.reference_flow,
-        experiment_mask,
-        data.row_target,
-        data.col_target,
-    )
+
+    edge_cost_modified = MBRP(data.reference_flow, experiment_mask, data.edge_cost.cap, 
+                              data.edge_cost.t0, data.edge_cost.alpha, data.edge_cost.beta)
+
     result = create_result(
         "regularized Beckmann + soft marginals",
-        data,
-        D,
-        flow,
-        objective,
-        robust_metric_fw_iters=ROBUST_METRIC_FW_ITERS,
-        fw_rgap=FW_RGAP,
-    )
-    first_moment = np.zeros_like(D)
-    second_moment = np.zeros_like(D)
+        data, data.D_initial, np.zeros_like(data.reference_flow), 0, robust_metric_fw_iters=ROBUST_METRIC_FW_ITERS, fw_rgap=FW_RGAP)
+    
+    # матрица, которая оптимизируется в процессе
+    D_k = data.D_initial.copy() # начальное приближение к матрице
 
+    # Данные для адама
+    first_moment = np.zeros_like(data.D_initial)
+    second_moment = np.zeros_like(data.D_initial)
+    
     for iteration in range(1, OUTER_ITERS + 1):
-        gradient = objective_gradient(
-            D,
-            regularized_gradient,
-            data.row_target,
-            data.col_target,
-        )
-        first_moment, second_moment, learning_rate = adam_step(
-            D, gradient, first_moment, second_moment, iteration
-        )
+        regularized_flow, _, regularized_gradient = \
+            beckmann.fw_beckmann_regularized_new_gradient_new_cost(data.csr, edge_cost_modified, D_k)
+        
+        gradient = objective_gradient(D_k, regularized_gradient, data.row_target, data.col_target)
 
-        regularized_flow, _, regularized_gradient = beckmann.fw_beckmann_regularized_new_gradient(
-            data.csr,
-            data.edge_cost,
-            D,
-            data.reference_flow,
-            experiment_mask,
-            alpha=FLOW_REGULARIZATION,
-            max_iter=FW_INNER_ITERS,
-            rgap_target=FW_RGAP,
-            verbose=False,
-        )
-        flow, _ = beckmann.fw_beckmann(
-            data.csr,
-            data.edge_cost,
-            D,
-            max_iter=FW_INNER_ITERS,
-            rgap_target=FW_RGAP,
-            verbose=False,
-        )
+        first_moment, second_moment, learning_rate = adam_step(D_k, gradient, first_moment, second_moment, iteration)
+
         objective = objective_value(
             data.edge_cost,
-            D,
+            D_k,
             regularized_flow,
             data.reference_flow,
             experiment_mask,
             data.row_target,
             data.col_target,
         )
-        rel_l1, flow_error, row_error, col_error = record_iteration(
-            result,
-            data,
-            D,
-            flow,
-            objective,
-            iteration,
+
+        rel_l1, flow_error, row_error, col_error = record_iteration(result, data, D_k, regularized_flow, objective, iteration, 
             outer_iters=OUTER_ITERS,
             robust_metric_every=ROBUST_METRIC_EVERY,
             robust_metric_fw_iters=ROBUST_METRIC_FW_ITERS,
-            fw_rgap=FW_RGAP,
-        )
+            fw_rgap=FW_RGAP)
 
         if iteration == 1 or iteration % PRINT_EVERY == 0 or iteration == OUTER_ITERS:
             print(

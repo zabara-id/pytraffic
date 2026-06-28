@@ -79,7 +79,7 @@ def fw_beckmann(
     D : np.ndarray,
     max_iter=500,
     rgap_target=1e-4,
-    verbose=True,
+    verbose=False,
 ):
     """
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна. 
@@ -127,11 +127,11 @@ def fw_beckmann_regularized(
     alpha = 1e-2,
     max_iter=500,
     rgap_target=1e-4,
-    verbose=True,
+    verbose=False,
 ):
     """
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
-    Регуляризация записывается в виде $beckman_potential + \alpha \| f - \hat{f}\|_{2}^2$ и фактически означает,
+    Регуляризация записывается в виде $beckman_potential + alpha  (f - \hat{f})_{2}^2$ и фактически означает,
     что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.
     Считает само решение и его градиент по матрице корреспонденции.
 
@@ -210,7 +210,7 @@ def fw_beckmann_regularized_new_gradient(
     alpha = 1e-2,
     max_iter=500,
     rgap_target=1e-4,
-    verbose=True,
+    verbose=False,
 ):
     """
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
@@ -295,12 +295,9 @@ def fw_beckmann_regularized_new_gradient_new_cost(
     csr: CSRGraph,
     edge_cost,
     D : np.ndarray,
-    f_hat, 
-    experiment_mask,
-    alpha = 1e-2,
     max_iter=500,
     rgap_target=1e-4,
-    verbose=True,
+    verbose=False,
 ):
     """
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
@@ -311,8 +308,6 @@ def fw_beckmann_regularized_new_gradient_new_cost(
     csr: CSRGraph -- представление графа в формате CSR для нахождения исходящих рёбер,
     edge_cost: callable -- функция стоимости ребра в зависимости от нагрузки, и от референсного потока
     D: np.ndarray (n, n), n -- количество вершин в графе (они все и origin, и destination),
-    f_hat: np.ndarray (m, ) -- вектор из известных потоков на рёбрах, входит в регуляризатор
-    experiment_mask: np.ndarray (m, ) -- вектора-маска на те рёбра, на которых нам реально известны потоки
     alpha: np.float64 -- параметр регуляризации к модели Бэкманна
     """
 
@@ -330,7 +325,7 @@ def fw_beckmann_regularized_new_gradient_new_cost(
 
         # Новый рачет поля стоимости на ребрах, с учетом регуляризации (это просто изменённая функция цены)
         # Предполагается, что цена всегда неотрицательна
-        edge_cost_field = edge_cost(flow, f_hat, experiment_mask)
+        edge_cost_field = edge_cost(flow)
 
         y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
 
@@ -339,7 +334,7 @@ def fw_beckmann_regularized_new_gradient_new_cost(
         flow = (1.0 - gamma) * flow + gamma * y
         gradient = (1.0 - gamma) * gradient + gamma * gradient_k
 
-        new_edge_cost_field = edge_cost(flow, f_hat, experiment_mask)
+        new_edge_cost_field = edge_cost(flow)
 
         rg = stop_criterion(flow, new_edge_cost_field, total_cost_k)
 
@@ -352,7 +347,7 @@ def fw_beckmann_regularized_new_gradient_new_cost(
 
     # Расчет градиента от функции F(D)
     # 1. Считаем равновесные цена ребёр (по модифицированной цене)
-    equilibrium_edge_costs = edge_cost(flow, f_hat, experiment_mask)
+    equilibrium_edge_costs = edge_cost(flow)
     # 2. Считаем кратчайшие пути между всеми вершинами
     gradint_of_optimal_potential_value = csr.all_pairs_shortest_distances(equilibrium_edge_costs)
     # Это и есть градиент по матрице корреспонденции, потому что добавленная малая корреспонденция delta_{ij}

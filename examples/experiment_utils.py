@@ -242,7 +242,7 @@ def _make_noisy_initial_od(
     noisy = D_true + rng.normal(0.0, relative_noise * positive_mean, size=D_true.shape)
     noisy = np.maximum(noisy, EPS)
     np.fill_diagonal(noisy, 0.0)
-    return _ipf_project_to_marginals(noisy, row_target, col_target)
+    return noisy
 
 
 def prepare_experiment(
@@ -285,11 +285,7 @@ def prepare_experiment(
         beckmann.fw_beckmann(
             scenario_csr,
             scenario_edge_cost,
-            D_true,
-            max_iter=robust_metric_fw_iters,
-            rgap_target=fw_rgap,
-            verbose=False,
-        )[0]
+            D_true)[0]
         for _, scenario_csr, scenario_edge_cost in robust_scenarios
     ]
     return ExperimentData(
@@ -338,10 +334,7 @@ def _deleted_edge_metric(
             scenario_csr,
             scenario_edge_cost,
             D,
-            max_iter=fw_iters,
-            rgap_target=fw_rgap,
-            verbose=False,
-        )
+)
         errors.append(relative_flow_error(flow, reference_flow))
     return float(np.mean(errors))
 

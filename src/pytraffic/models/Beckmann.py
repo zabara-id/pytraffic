@@ -5,6 +5,8 @@ from pytraffic.graph.CSRGraph import CSRGraph
 from pytraffic.models.BRPCost import BRP
 from typing import Tuple
 
+from numba import njit
+
 def stop_criterion(flow, time, sp_cost):
     """
     Остановка по относительной ошибке
@@ -15,7 +17,11 @@ def stop_criterion(flow, time, sp_cost):
 # ============================================================
 # All-or-Nothing assignment (FW direction)
 # ============================================================
-def aon_assign(csr: CSRGraph, weight: np.ndarray, D: np.ndarray) -> Tuple[np.ndarray, float]:
+def _aon_assign_python(
+    csr: CSRGraph,
+    weight: np.ndarray,
+    D: np.ndarray,
+) -> Tuple[np.ndarray, float, np.ndarray]:
     """
     All-or-Nothing loading when ALL nodes are zones.
 
@@ -68,6 +74,89 @@ def aon_assign(csr: CSRGraph, weight: np.ndarray, D: np.ndarray) -> Tuple[np.nda
                 cur = int(csr.tail[e])
 
     return solution, total_assignment_cost, gradient
+
+
+@njit(cache=True, nogil=True)
+def _aon_assign_numba(
+    n,
+    m,
+    tail,
+    head,
+    first_out,
+    out_eid,
+    weight,
+    D,
+):
+    """Numba kernel for all shortest paths, AON loading, and its Jacobian."""
+    solution = np.zeros(m, dtype=np.float64)
+    gradient = np.zeros((m, n * n), dtype=np.float64)
+    total_assignment_cost = 0.0
+
+    for origin in range(n):
+        dist = np.full(n, np.inf, dtype=np.float64)
+        previous_edges = np.full(n, -1, dtype=np.int32)
+        visited = np.zeros(n, dtype=np.bool_)
+        dist[origin] = 0.0
+
+        for _ in range(n):
+            u = -1
+            best_distance = np.inf
+            for node in range(n):
+                if not visited[node] and dist[node] < best_distance:
+                    best_distance = dist[node]
+                    u = node
+
+            if u < 0:
+                break
+            visited[u] = True
+
+            for position in range(first_out[u], first_out[u + 1]):
+                edge = out_eid[position]
+                destination = head[edge]
+                new_distance = best_distance + weight[edge]
+                if new_distance < dist[destination]:
+                    dist[destination] = new_distance
+                    previous_edges[destination] = edge
+
+        total_assignment_cost += np.dot(D[origin], dist)
+
+        for destination in range(n):
+            correspondence = D[origin, destination]
+            current = destination
+            while current != origin:
+                edge = previous_edges[current]
+                if edge < 0:
+                    break
+                solution[edge] += correspondence
+                gradient[edge, origin * n + destination] = 1.0
+                current = tail[edge]
+
+    return solution, total_assignment_cost, gradient
+
+
+def aon_assign(
+    csr: CSRGraph,
+    weight: np.ndarray,
+    D: np.ndarray,
+    *,
+    use_numba: bool = True,
+) -> Tuple[np.ndarray, float, np.ndarray]:
+    """All-or-Nothing assignment with a Numba fast path and Python fallback."""
+    weight = np.asarray(weight, dtype=np.float64)
+    D = np.asarray(D, dtype=np.float64)
+
+    if use_numba:
+        return _aon_assign_numba(
+            csr.n,
+            csr.m,
+            csr.tail,
+            csr.head,
+            csr.first_out,
+            csr.out_eid,
+            weight,
+            D,
+        )
+    return _aon_assign_python(csr, weight, D)
     
 
 # ============================================================
@@ -80,6 +169,7 @@ def fw_beckmann(
     max_iter=500,
     rgap_target=1e-4,
     verbose=False,
+    use_numba=True,
 ):
     """
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна. 
@@ -97,7 +187,12 @@ def fw_beckmann(
     for k in range(1, max_iter + 1):
         # Решаем ЛП на заданном множестве
         edge_cost_field = edge_cost(flow)
-        y, total_cost_k, gradient_k = aon_assign(csr, edge_cost_field, D)
+        y, total_cost_k, gradient_k = aon_assign(
+            csr,
+            edge_cost_field,
+            D,
+            use_numba=use_numba,
+        )
 
         # Шаг аглоритма Франка-Вульфа
         gamma = 2.0 / (k + 2.0)
@@ -129,7 +224,7 @@ def fw_beckmann_regularized(
     rgap_target=1e-4,
     verbose=False,
 ):
-    """
+    r"""
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
     Регуляризация записывается в виде $beckman_potential + alpha  (f - \hat{f})_{2}^2$ и фактически означает,
     что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.
@@ -212,7 +307,7 @@ def fw_beckmann_regularized_new_gradient(
     rgap_target=1e-4,
     verbose=False,
 ):
-    """
+    r"""
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
     Регуляризация записывается в виде $beckman_potential + \alpha \| f - \hat{f}\|_{2}^2$ и фактически означает,
     что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.
@@ -299,7 +394,7 @@ def fw_beckmann_regularized_new_gradient_new_cost(
     rgap_target=1e-4,
     verbose=False,
 ):
-    """
+    r"""
     Метод Франк-Вульфа для решения задачи TA по модели Бэкманна c регуляризацией. 
     Регуляризация записывается в виде $beckman_potential + \alpha \| f - \hat{f}\|_{2}^2$ и фактически означает,
     что на каждой итерации в модели Бэкманна будет происходить смена весов на рэбрах графа.

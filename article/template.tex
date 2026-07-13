@@ -1,0 +1,320 @@
+\documentclass{crm-article}
+
+\begin{document}
+
+%\englishpaper % раскомментировать в том случае, если текст статьи на английском языке
+
+%\norussian % раскомментировать, если нет метаданных на русском
+
+%\affiliationnoref % раскомментировать, если автор один или все авторы из одной организации
+
+%\emailnoref % раскомментировать в том случае, если автор единственный
+
+%\year=2018 % current year by default
+\journalVol{10}
+\journalNo{1} %выпуска
+\setcounter{page}{1}
+
+% раздел журнала
+\journalSection{Математические основы и численные методы моделирования}
+\journalSectionEn{Mathematical modeling and numerical simulation}
+
+
+% дата получения
+\journalReceived{01.06.2016.}
+%\journalReviewed{01.06.2016.}
+%принято к публикации
+\journalAccepted{01.06.2016.}
+
+
+\UDC{519.8}
+\title{Название статьи}
+\titleeng{Title}
+\thanks{Работа выполнена при поддержке...}%если имеется
+\thankseng{This work was supported...}
+
+%автор - в формате \author{\firstname{И.\,И.}~\surname{Иванов}}
+\author{\firstname{И.\,О.}~\surname{Фамилия}}
+%автор - в формате \authorfull{Имя Отчество Фамилия}
+\authorfull{Имя Отчество Фамилия}
+% автор на англ. - в формате \authoreng{\firstname{I.\,I.}~\surname{Ivanov}}
+\authoreng{\firstname{F.\,M.}~\surname{Surname}}
+%автор на англ. - в формате \authorfull{Firstname M. Surname}
+\authorfulleng{Firstname M. Surname}
+%вписать свою электронную почту
+\email{author@example.com}
+%организация - в формате \affiliation{Московский государственный университет,\protect\\ Россия, 141700, г. Москва, ул. Университетская, д. 9}
+\affiliation{Название организации,\protect\\ Адрес}
+%организация - в формате \affiliationeng{Moscow State Institute University, 9 University street, Moscow, 141700, Russia}
+\affiliationeng{Organization,\protect\\ Address}
+
+% повторите блок для каждого автора;
+% если авторов несколько, и автоматическая расстановка сносок от фамилий 
+% к организациям приводит к неправильным результатам, укажите правильный 
+% вариант в квадраных скобках
+
+\author[1,2]{\firstname{И.\,О.}~\surname{Другой}}
+\authorfull{Имя Отчество Другой}
+\authoreng{\firstname{F.\,M.}~\surname{Another}}
+\authorfulleng{Firstname M. Another}
+\email{another@example.com}
+\affiliation[2]{Другая организация,\protect\\ Адрес}
+\affiliationeng{Another Organization,\protect\\ Address}
+
+
+\begin{abstract}
+Аннотация - не менее 250 слов.
+\end{abstract}
+
+
+\keyword{ключевое слово1}
+\keyword{ключевое слово2}
+
+\begin{abstracteng}
+Abstract - 250 words minimum.
+\end{abstracteng}
+\keywordeng{keyword1}
+\keywordeng{keyword2}
+
+\maketitle
+
+%Раздел обозначается \paragraph, подраздел - \subparagraph (не \section и \subsection)
+\paragraph{Введение}
+
+Текст статьи. Пожалуйста, внимательно прочитайте руководство для авторов на сайте журнала: \url{http://crm-en.ics.org.ru/journal/page/authors/}.
+
+
+%%%%%%%%%%%%%%%%%%
+
+Доступные окружения:
+teo -- Теорема,
+hyp -- Гипотеза,
+lem -- Лемма,
+cor -- Следствие,
+pro -- Предложение,
+con -- Предположение,
+fed -- Определение,
+rem -- Замечание,
+com -- Комментарий,
+exl -- Пример,
+sol -- Решение.
+
+%%% выражения типа "то есть", "так далее" не сокращаются, а пишутся полностью.
+%%% обратите внимание, что в выключных формулах пределы интегрирования
+%%% проставляются сверху, а не справа, то есть используется команда \limits.
+%%%
+%%% окружение gather (в том числе в варианте со звездочкой) предпочтительнее
+%%% окружения equation и "двойных" долларов
+
+
+\begin{gather} \label{1}  %%%%%%%%%
+\dot x(t)=\int\limits_{-r}^0 dA(t,s)x(t+s),\quad  t\in\mathbb R=(-\infty,\infty).
+\end{gather}
+
+В дальнейшем систему \eqref{1} будем отождествлять \ldots
+\begin{gather} \label{2}  %%%%%%%%%
+\dot y(t)=\int\limits_{-r}^0 dB(t,s)y(t+s),\quad  t\in\mathbb R=(-\infty,\infty).
+\end{gather}
+
+
+%Оформление теорем с нумерацией
+\begin{teo}
+Текст.
+\end{teo}
+
+\proof*%Доказательство 1 вариант
+Текст доказательства теоремы.\qed
+
+%Оформление теорем без нумерации
+%(вариант со звездочкой возможен и для оформления гипотез, лемм, следствий, предложений, предположений,
+%определений, замечаний, комментариев, примеров, решений)
+\begin{teo*}
+Текст.
+\end{teo*}
+
+%Оформление гипотез
+\begin{hyp}
+Текст.
+\end{hyp}
+
+%Оформление лемм
+\begin{lem}
+Текст.
+\end{lem}
+
+%Оформление следствий
+\begin{cor}
+Текст.
+\end{cor}
+
+%Оформление предложений
+\begin{pro}
+Текст.
+\end{pro}
+
+%Оформление предположений
+\begin{con}
+Текст.
+\end{con}
+
+%Оформление определений
+\begin{fed}
+Текст.
+\end{fed}
+
+%Оформление замечаний
+\begin{rem}
+Текст.
+\end{rem}
+
+%Оформление следствий
+\begin{com}
+Текст.
+\end{com}
+
+%Оформление примеров
+\begin{exl}
+Текст.
+\end{exl}
+
+%Оформление решений
+\begin{sol}
+Текст.
+\end{sol}
+
+
+%Оформление рисунков
+%готовые рисунки в формате eps необходимо сохранять в папку eps,
+%файлы CorelDraw - в папку cdr (если они имеются).
+\begin{figure}[!ht]
+\centering
+%\includegraphics{eps/autor_01.eps}
+\smallskip
+\caption{Рисунки должны иметь содержательные подписи, позволяющие понять их смысл без обращения к основному тексту статьи. Все используемые обозначения должны быть расшифрованы в подписи, координатные оси на графиках подписаны (с указанием единиц измерения). Все подписи, обозначения, легенды и т.п. должны быть выполнены на том же языке, что и сама статья.}
+\end{figure}
+
+
+%Оформление таблиц
+\begin{table}[!ht]
+\centering
+\caption{Таблицы должны иметь содержательные подписи, позволяющие понять их смысл без обращения к основному тексту статьи.}
+\medskip
+\begin{tabular}{|c|c|c|}
+\hline
+Строка 1 & Колонка 2 & Колонка 3\\
+\hline
+Строка 2& Колонка 2 & Колонка 3\\
+\hline
+\end{tabular}
+\end{table}
+
+%Пример выключенной формулы
+$$
+Y= S_1\times S_2\times \ldots \times S_N.
+$$
+
+
+%%%%пример оформления списка литературы в соответствии с ГОСТ Р 7.0.5-2008.
+	
+\begin{thebibliography}{99}
+
+
+\bibitem[Биррелл, Девис, 1984]{Devis} {\it Биррелл~Н., Девис~В.}
+    Квантованные поля в искривленном пространстве-времени.~--- М.:
+    Мир, 1984.~--- 356~с.\\
+%\bibitem[Birrell, Devis, 1984]{devisENG}
+{\footnotesize {\em Birrell N. D., Davies P. C. W.} Quantum fields in curved space.~--- Cambridge university press, 1984.~--- No.~7.
+(Russ. ed.: {\it Birrell~N., Devis~V.}
+    Kvantovannye polya v iskrivlennom prostranstve vremeni.~--- Moskva:
+    Mir, 1984~--- 356~s.) \par}
+
+\bibitem[Браун, 1983]{Braun} {\it Браун~П.\,А., Киселев~А.\,А.}
+    Введение в теорию молекулярных спектров.~--- Л.: Изд-во Ленингр.
+    ун-та, 1938.~--- 232~с.
+\\
+%\bibitem[Braun, 1983]{BraunENG}
+{\footnotesize{\it Braun~P.\,A., Kiselev~A.\,A.}
+    Vvedenie v teoriyu molekulyarnyh spektrov [Introduction to the Theory of Molecular Spectra].~--- Leningrad: Izd-vo Leningr.
+    un-ta, 1938.~--- 232~s. (in Russian).\par}
+
+\bibitem[Бреев~А.\,И., 2007]{Br07} {\it Бреев~А.\,И., Широков~И.\,В.,
+    Разумов~Н.} Поляризация вакуума скалярного поля на многообразии,
+    конформно-эквивалентном RхG // Известия высших учебных заведений.
+    Физика.~--- 2007.~--- \No~10.~--- C.~50--56.
+\\
+%\bibitem[breev~A.\,I.,2007]{Br07ENG}
+{\footnotesize{\it Breev~A.\,I.,
+    Shirokov~I.\,V., Razumov N.} Polyarizaciya vakuuma skalyarnogo
+    polya na mnogoobrazii konformno-ehkvivalentnom rhg [Polarization
+    of a scalar field vacuum on a manifold conformally equivalent to
+    the manifold R$\otimes$ G] // Izvestiya
+    vysshih uchebnyh zavedenij. Fizika.~--- 2007.~--- No.~10.~--- S.~50--56 (in Russian).\par}
+
+\bibitem[Гончаровский, 2009]{Gon09} {\it Гончаровский~М.\,М.,
+    Широков~И.\,В.} Интегрируемый класс дифференциальных уравнений с
+    нелокальной нелинейностью на группах Ли~// Теоретическая и
+    математическая физика.~--- Т.~161, \No~3.~--- C. 332--345.
+\\
+%\bibitem[Goncharovskij,2009]{Gon09ENG}
+{\footnotesize{\it Goncharovskij~M.\,M., Shirokov~I.\,V.} Integriruemyj klass differencialnyh uravnenij s
+    nelokalnoj nelinejnostyu nagruppah Li [An integrable class of
+    differential equations with nonlocal nonlinearity on Lie groups]~// Teoreticheskaya i
+    Matematicheskaya Fizika.~--- Vol.~161, No.~3.~--- S.~332--345 (in Russian).\par}
+
+
+
+\bibitem[Гриб, Мамаев, 1988]{Grib} {\it Гриб~A.\,A., Мамаев~C.\,Г.,
+    Мостепаненко~В.\,М.} Вакуумные квантовые эффекты в сильных
+    полях.~--- М.: Атомиздат, 1988.~--- 288~с.
+\\
+%\bibitem[Grib, Mamaev, 1988]{GribENG}
+{\footnotesize{\it Grib~A.\,A.,
+    Mamaev~C.\,G., Mostepanenko~V.\,M.} Vakuumnye kvantovye ehffekty
+    v silnyh polyah [Vacuum quantum effects in strong fields].~--- Moskva: Atomizdat, 1988.~--- 288~s. (in Russian).\par}
+
+\bibitem[Кириллов, 1978]{kirr} {\it Кириллов~А.\,А.} Элементы теории
+    представлений.~--- М.: Наука, 1978.~--- 344~с.
+\\
+%\bibitem[Kirillov, 1978]{kirrENG}
+{\footnotesize{\it Kirillov~A.\,A.} Ehlementy
+    teorii predstavlenij [Elements of the Theory of Representations].~--- Moskva: Nauka, 1978.~--- 344~s. (in Russian).\par}
+
+\bibitem[Шаповалов, 1995]{Shap95} {\it Шаповалов~А.\,В.,
+    Широков~И.\,В.} Некоммутативное интегрирование линейных
+    дифференциальных уравнений  // Теоретическая и математическая
+    физика.~--- 1995.~--- Т.~104, \No~2.~--- С.~195--213.
+\\
+%\bibitem[Shapovalov, 9915]{Shap95ENG}
+{\footnotesize{\it Shapovalov~A.\,V.,
+    Shirolov~I.\,V.} Nekommutativnoe integrirovanie linejnyh
+    differencialnyh uravnenij [Noncommutative integration of linear
+    differential equations]~// Teoreticheskaya i matematicheskaya
+    fizika.~--- 1995.~--- Vol.~104, No.~2.~--- S.~195--213 (in Russian).\par}
+
+
+\bibitem[Breev, 2014]{Br14} {\it Breev~A.\,I. Shapovalov~A.\,V.}
+    Yang-Mills gauge felds conserving the symmetry algebra of the
+    Dirac equation in a homogeneous space~// Journal of Physics:
+    Conference Series.~--- 2014.~--- Vol.~563.~--- P.~012004.
+
+\bibitem[Hu, 1973]{Hu1} {\it Hu~B.\,L.} Scalar waves in the Mixmaster
+    Universe. I. The Helmholtz equation in a fixed background //
+    Phys. Rev.~D.~--- 1973.~--- Vol.~{8}, No.~4.~--- P.~1048--1060.
+
+\bibitem[Hu, 1974]{Hu2} {\it Hu~B.\,L.} Scalar waves in the Mixmaster
+    Universe. II. Particle creation~// Phys. Rev.~D.~--- 1974.~--- Vol.~9,
+No.~9.~--- P.~3263--3281.
+
+\bibitem[Pritomanov, 1985]{Prit} {\it Pritomanov~S.\,A.} Quantum
+    effects in Mixmaster Universe // Phys. Lett.~A.~--- 1985.~--- Vol.~107,
+No.~1.~--- P.~33--35.
+
+\bibitem[Ryan, 1975]{Ryan} {\it Ryan~M.\,P., Shepley~L.\,C.}
+    Homogeneous relativistic cosmologies.~--- Princeton: Princeton
+    series in Physics, 1975.~--- 336~p.
+
+
+\end{thebibliography}
+
+
+\end{document}

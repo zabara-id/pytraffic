@@ -12,26 +12,82 @@
 \babel@aux{russian}{}
 \babel@aux{russian}{}
 \babel@aux{russian}{}
-\bibcite{Devis}{Биррелл, Девис, 1984}
-\bibcite{Braun}{Браун, 1983}
-\bibcite{Br07}{Бреев~А.\,И., 2007}
-\bibcite{Gon09}{Гончаровский, 2009}
-\bibcite{Grib}{Гриб, Мамаев, 1988}
-\bibcite{kirr}{Кириллов, 1978}
-\bibcite{Shap95}{Шаповалов, 1995}
-\bibcite{Br14}{Breev, 2014}
-\bibcite{Hu1}{Hu, 1973}
-\bibcite{Hu2}{Hu, 1974}
-\bibcite{Prit}{Pritomanov, 1985}
-\bibcite{Ryan}{Ryan, 1975}
+\citation{Yang1992,Mohanty2020,Castiglione2021}
+\citation{ZhouList2010,Dey2020}
+\citation{BPR1964}
 \@writefile{toc}{\contentsline {paragraph}{Введение}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Анализ литературы}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Эксперименты}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Заключение}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Список литературы (References)}{3}{}\protected@file@percent }
-\newlabel{sec:toc}{{}{3}}
-\newlabel{LastPage}{{}{3}{}{}{}}
-\gdef\lastpage@lastpage{3}
+\@writefile{toc}{\contentsline {paragraph}{Математическая постановка}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subparagraph}{Транспортная сеть и допустимый спрос}{3}{}\protected@file@percent }
+\newlabel{eq:marginals}{{2.1}{3}}
+\newlabel{eq:feasible-D}{{2.2}{3}}
+\citation{Beckmann1956}
+\citation{FrankWolfe1956}
+\newlabel{eq:bpr}{{2.3}{4}}
+\@writefile{toc}{\contentsline {subparagraph}{Равновесное назначение}{4}{}\protected@file@percent }
+\newlabel{eq:beckmann}{{2.4}{4}}
+\@writefile{toc}{\contentsline {subparagraph}{Внешняя целевая функция}{4}{}\protected@file@percent }
+\newlabel{eq:outer-objective}{{2.5}{4}}
+\@writefile{toc}{\contentsline {paragraph}{Численный метод}{4}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subparagraph}{Метод Франк--Вульфа и аппроксимация якобиана}{4}{}\protected@file@percent }
+\newlabel{eq:routing-matrix}{{3.1}{4}}
+\newlabel{eq:fw}{{3.2}{5}}
+\newlabel{eq:fw-stopping}{{3.3}{5}}
+\newlabel{eq:jacobian-recurrence}{{3.4}{5}}
+\newlabel{eq:flow-objective-finite}{{3.5}{5}}
+\newlabel{eq:gradient-component}{{3.6}{5}}
+\citation{KingmaBa2015}
+\citation{SinkhornKnopp1967}
+\citation{LeBlanc1975,TNTP2026}
+\newlabel{eq:outer-gradient}{{3.7}{6}}
+\@writefile{toc}{\contentsline {subparagraph}{Adam и восстановление маргиналий}{6}{}\protected@file@percent }
+\newlabel{eq:adam-moments}{{3.8}{6}}
+\newlabel{eq:adam-correction}{{3.9}{6}}
+\newlabel{eq:adam-step}{{3.10}{6}}
+\newlabel{eq:ipf}{{3.11}{6}}
+\newlabel{eq:best-iterate}{{3.12}{6}}
+\@writefile{toc}{\contentsline {paragraph}{Постановка экспериментов}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subparagraph}{Данные и построение наблюдений}{6}{}\protected@file@percent }
+\newlabel{eq:initial-D}{{4.1}{7}}
+\@writefile{toc}{\contentsline {subparagraph}{Метрики качества}{7}{}\protected@file@percent }
+\newlabel{eq:full-flow-error}{{4.2}{7}}
+\newlabel{eq:deleted-edge-error}{{4.3}{7}}
+\@writefile{toc}{\contentsline {subparagraph}{Гиперпараметры}{8}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Общие гиперпараметры численных экспериментов.}}{8}{}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:hyperparameters}{{1}{8}}
+\@writefile{toc}{\contentsline {paragraph}{Результаты и обсуждение}{8}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subparagraph}{Доля случайно наблюдаемых рёбер}{8}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Зависимость качества восстановления от доли случайно наблюдаемых рёбер: (а) относительная ошибка потока на всех 76 рёбрах исходной сети; (б) средняя относительная ошибка потоков в 12 сетях с удалённым ребром. Множества наблюдений вложены. Увеличенный заполненный маркер показывает итерацию с минимальным значением целевой функции \eqref  {eq:outer-objective}; линии различаются цветом, штриховкой и формой маркеров.}}{9}{}\protected@file@percent }
+\newlabel{fig:exp3}{{1}{9}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Ошибки возвращаемой матрицы при случайном выборе наблюдаемых рёбер.}}{9}{}\protected@file@percent }
+\newlabel{tab:exp3}{{2}{9}}
+\@writefile{toc}{\contentsline {subparagraph}{Способ выбора половины рёбер}{9}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Сравнение трёх способов выбрать 38 из 76 наблюдаемых рёбер: по наибольшим референсным потокам, по наименьшим потокам и случайно. Панели и увеличенные маркеры имеют тот же смысл, что на рис.~\let {3}{10}{1}{9}3.}}{10}{}\protected@file@percent }
+\newlabel{fig:exp4}{{2}{10}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Ошибки возвращаемой матрицы для трёх способов размещения 38 датчиков.}}{10}{}\protected@file@percent }
+\newlabel{tab:exp4}{{3}{10}}
+\@writefile{toc}{\contentsline {subparagraph}{Доля рёбер с наибольшими потоками}{10}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Ошибки возвращаемой матрицы при наблюдении рёбер с наибольшими потоками.}}{10}{}\protected@file@percent }
+\newlabel{tab:exp5}{{4}{10}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Зависимость качества от доли наблюдаемых рёбер с наибольшими референсными потоками. Наблюдаемые множества вложены; обозначения панелей и увеличенных маркеров совпадают с рис.~\let {4}{10}{1}{9}4.}}{11}{}\protected@file@percent }
+\newlabel{fig:exp5}{{3}{11}}
+\@writefile{toc}{\contentsline {subparagraph}{Идентифицируемость и ограничения эксперимента}{11}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Заключение}{11}{}\protected@file@percent }
+\bibcite{Beckmann1956}{Beckmann et al., 1956}
+\bibcite{BPR1964}{Bureau of Public Roads, 1964}
+\bibcite{Castiglione2021}{Castiglione et al., 2021}
+\bibcite{Dey2020}{Dey et al., 2020}
+\bibcite{FrankWolfe1956}{Frank, Wolfe, 1956}
+\bibcite{KingmaBa2015}{Kingma, Ba, 2015}
+\bibcite{LeBlanc1975}{LeBlanc et al., 1975}
+\bibcite{Mohanty2020}{Mohanty, Pozdnukhov, 2020}
+\bibcite{SinkhornKnopp1967}{Sinkhorn, Knopp, 1967}
+\bibcite{TNTP2026}{Transportation Networks for Research, 2026}
+\bibcite{Yang1992}{Yang et al., 1992}
+\@writefile{toc}{\contentsline {paragraph}{Список литературы (References)}{12}{}\protected@file@percent }
+\newlabel{sec:toc}{{}{12}}
+\bibcite{ZhouList2010}{Zhou, List, 2010}
+\newlabel{LastPage}{{}{13}{}{table.4}{}}
+\gdef\lastpage@lastpage{13}
 \gdef\lastpage@lastpageHy{}
-\gdef \@abspage@last{3}
+\gdef \@abspage@last{13}

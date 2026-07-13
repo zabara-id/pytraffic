@@ -323,10 +323,13 @@ def run_masked_experiment(
     flow_error_history = [experiment_utils.relative_flow_error(flow, context.reference_flow)]
     deleted_edge_error_history = [deleted_edge_metric(context, D)]
     deleted_edge_iterations = [0]
-    objective_history = [
-        masked_flow_mismatch_value(flow, context.reference_flow, observation_mask)
-        + exp1.entropy_value(D)
-    ]
+    initial_masked_mismatch = masked_flow_mismatch_value(
+        flow,
+        context.reference_flow,
+        observation_mask,
+    )
+    masked_mismatch_history = [initial_masked_mismatch]
+    objective_history = [initial_masked_mismatch + exp1.entropy_value(D)]
 
     best_objective = objective_history[-1]
     best_rel_l1 = rel_l1_history[-1]
@@ -378,10 +381,12 @@ def run_masked_experiment(
 
         rel_l1 = experiment_utils.relative_l1_error(D, context.D_true)
         flow_error = experiment_utils.relative_flow_error(flow, context.reference_flow)
-        objective = (
-            masked_flow_mismatch_value(flow, context.reference_flow, observation_mask)
-            + exp1.entropy_value(D)
+        masked_mismatch = masked_flow_mismatch_value(
+            flow,
+            context.reference_flow,
+            observation_mask,
         )
+        objective = masked_mismatch + exp1.entropy_value(D)
         row_error, col_error = experiment_utils.relative_marginal_errors(
             D,
             context.row_target,
@@ -391,6 +396,7 @@ def run_masked_experiment(
         trajectory.append(D.copy())
         rel_l1_history.append(rel_l1)
         flow_error_history.append(flow_error)
+        masked_mismatch_history.append(masked_mismatch)
         objective_history.append(objective)
         row_error_history.append(row_error)
         col_error_history.append(col_error)
@@ -418,6 +424,7 @@ def run_masked_experiment(
                 f"row_err={row_error:.2e} col_err={col_error:.2e}"
             )
 
+    best_deleted_edge_error = deleted_edge_metric(context, best_D)
     result: dict[str, object] = {
         "scenario_name": scenario.name,
         "observation_mask": observation_mask.copy(),
@@ -436,6 +443,8 @@ def run_masked_experiment(
         "flow_error_history": flow_error_history,
         "deleted_edge_iterations": deleted_edge_iterations,
         "deleted_edge_error_history": deleted_edge_error_history,
+        "best_deleted_edge_error": best_deleted_edge_error,
+        "masked_mismatch_history": masked_mismatch_history,
         "objective_history": objective_history,
         "row_error_history": row_error_history,
         "col_error_history": col_error_history,
@@ -459,6 +468,8 @@ def print_result_summary(result: dict[str, object]) -> None:
         best_iteration,
         "flow error:",
         f"{result['flow_error_history'][best_iteration]:.6e}",
+        "deleted-edge error:",
+        f"{result['best_deleted_edge_error']:.6e}",
     )
 
 

@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1784057448.00227 "/Users/zabarailya/VSCodeProjects/pytraffic/article/main.tex" "main.pdf" "main" 1784057448.68057 0
+["pdflatex"] 1784057910.02929 "/Users/zabarailya/VSCodeProjects/pytraffic/article/main.tex" "main.pdf" "main" 1784057910.78835 0
   "/Users/zabarailya/Library/texlive/2025/texmf-var/fonts/tfm/lh/lh-t2a/labi1095.tfm" 1783974589.08258 3604 e8e83ab9ef42b816f259b0a506ae5eab ""
   "/Users/zabarailya/Library/texlive/2025/texmf-var/fonts/tfm/lh/lh-t2a/labi1200.tfm" 1783974591.50216 3592 9415307df98650ffeddaa22e262436dc ""
   "/Users/zabarailya/Library/texlive/2025/texmf-var/fonts/tfm/lh/lh-t2a/labx0900.tfm" 1783972386.21249 3308 0e40fe47c68a93146385123973edfb65 ""
@@ -17,7 +17,7 @@
   "/Users/zabarailya/Library/texlive/2025/texmf-var/fonts/tfm/lh/lh-t2a/lati1000.tfm" 1783972393.35702 3528 defd551e32c4af414f9b54b8101bfa9b ""
   "/Users/zabarailya/Library/texlive/2025/texmf-var/fonts/tfm/lh/lh-t2a/lati1095.tfm" 1783972401.41866 3540 aa544087ee3edf9ee068cbdc0ae52760 ""
   "/Users/zabarailya/Library/texlive/2025/texmf-var/fonts/tfm/lh/lh-t2a/latt1095.tfm" 1783974632.04579 1276 e8f51803ab84b07f08acd5c6da2228c8 ""
-  "/Users/zabarailya/VSCodeProjects/pytraffic/article/main.tex" 1784057424.22111 69957 9e0388ae371c4d46c6f5eb222a958e8e ""
+  "/Users/zabarailya/VSCodeProjects/pytraffic/article/main.tex" 1784057842.74707 75240 1834bfa061c876e08041f0456fceaf92 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t2a.enc" 1136849721 3141 82d5616418ed8d5de703b3951bedecb4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -184,8 +184,8 @@
   "figures/exp3_random_fraction_convergence.pdf" 1783980091.83442 33788 4c35ebfaa5d56650e283a5955a487583 ""
   "figures/exp4_selection_convergence.pdf" 1783980091.83734 28746 073e0f61983d00ea3cff163ce49c87e9 ""
   "figures/exp5_top_fraction_convergence.pdf" 1783980091.83992 29602 d9b83fc49efe044092c83e41008494c6 ""
-  "main.aux" 1784057448.5594 8790 0cbfcbe132e40cbd2ec28e4f0e89a985 "pdflatex"
-  "main.tex" 1784057424.22111 69957 9e0388ae371c4d46c6f5eb222a958e8e ""
+  "main.aux" 1784057910.67467 8793 a4091dea89f97ef34a1ccb81e2b2ff95 "pdflatex"
+  "main.tex" 1784057842.74707 75240 1834bfa061c876e08041f0456fceaf92 ""
   "rcdthm.sty" 1783980091.84698 9922 63e6252dc037c88f9df9cf76c02a3663 ""
   (generated)
   "main.aux"

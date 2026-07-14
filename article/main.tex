@@ -1,14 +1,23 @@
 \documentclass{crm-article}
 
-% Compatibility of the journal's citehack with extended labels produced by
-% current LaTeX packages.  Without this patch, a reference may contain its
-% internal hyperlink anchor, for example ``3.3equation.3.3''.
+% Compatibility with current lastpage: citehack from the journal class
+% otherwise appends the hyperlink anchor (for example, ``table.4'') to the
+% page number stored in a five-field label.
+% \makeatletter
+% \def\CRMsecondoffields#1#2#3\null{#2}
+% \renewcommand{\pageref}[1]{%
+%   \expandafter\let\expandafter\CRMpagereftemp\csname r@#1\endcsname
+%   \@setref\CRMpagereftemp\CRMsecondoffields{#1}}
+% \makeatother
+
 \makeatletter
 \def\CRMfirstoffields#1#2#3\null{#1}
 \def\CRMsecondoffields#1#2#3\null{#2}
+
 \renewcommand{\ref}[1]{%
   \expandafter\let\expandafter\CRMreftemp\csname r@#1\endcsname
   \@setref\CRMreftemp\CRMfirstoffields{#1}}
+
 \renewcommand{\pageref}[1]{%
   \expandafter\let\expandafter\CRMpagereftemp\csname r@#1\endcsname
   \@setref\CRMpagereftemp\CRMsecondoffields{#1}}
@@ -183,9 +192,77 @@ and recovery quality depends on both the number and the location of sensors.
 как основной критерий: при частичных наблюдениях она слабо идентифицируема, в
 то время как практическая цель состоит в воспроизведении потоков.
 
-% TODO(literature-review): перед подачей расширить обзор современными работами,
-% сопоставить статические и динамические ODME-методы и чётче отделить вклад
-% статьи. Журнал КиМ требует современные международные журнальные источники.
+\paragraph{Обзор литературы}
+
+Методы получения OD-матрицы можно разделить на прямые модели расчёта спроса и
+методы восстановления по измерениям потоков. Прямые модели используют только
+агрегированные характеристики зон. В гравитационной модели \cite{Isard1960}
+корреспонденции пропорциональны объёмам отправлений и прибытий и убывают с
+ростом обобщённой цены поездки: $D_{ij}=A_iB_jl_iw_jf(T_{ij})$, где
+балансировочные множители $A_i$, $B_j$ подбираются так, чтобы выполнялись
+маргинальные суммы. Энтропийная модель \cite{Wilson1968} приводит к той же
+мультипликативной структуре с $f(T_{ij})=\exp(-\beta T_{ij})$ как решение
+задачи максимизации энтропии распределения поездок при заданных маргиналиях.
+Измерения потоков в этих моделях не используются, а попеременный пересчёт
+множителей $A_i$ и $B_j$ совпадает с масштабированием Синхорна, применяемым
+ниже как IPF-проекция \cite{SinkhornKnopp1967}.
+
+Второй класс методов оценивает матрицу по счётчикам потоков на рёбрах. В
+незагруженной сети доли распределения корреспонденций по путям считаются не
+зависящими от загрузки, поэтому назначение линейно по спросу, а наблюдения
+образуют систему линейных уравнений относительно элементов матрицы. Среди её
+решений в \cite{VanZuylenWillumsen1980} выбирается наиболее вероятная матрица
+по критерию максимальной энтропии, в \cite{Spiess1987} строится оценка
+максимального правдоподобия при пуассоновской модели наблюдений, а метод
+\cite{BierlaireToint1995} дополнительно использует структурные свойства
+задачи. Поскольку число пар зон существенно превышает число счётчиков, система
+недоопределена, и восстановленная матрица во многом определяется выбором меры
+близости и априорной матрицей.
+
+При заторах маршрутные доли сами зависят от искомого спроса, и восстановление
+приводит к двухуровневым постановкам. Равновесная модель оценки спроса по
+наблюдаемым затратам на передвижение предложена в \cite{Nguyen1977}; её
+решение, вообще говоря, неединственно, поэтому в
+\cite{JornstenNguyen1979,Fisk1988} внешним критерием выбора служит
+максимальная энтропия. В \cite{Yang1992} внешняя задача записана как
+обобщённый метод наименьших квадратов, объединяющий невязку счётчиков с
+отклонением от априорной матрицы. Постановка без априорной матрицы
+рассматривается в \cite{Krylatov2021} как обратная задача транспортного
+назначения; там же подчёркивается существенная неединственность её решений.
+Современные работы привлекают дополнительные источники данных: сотовые данные
+и времена движения \cite{Mohanty2020}, онлайн-оценивание динамических матриц
+без явной матрицы назначения \cite{Castiglione2021}, восстановление только по
+счётчикам \cite{Dey2020}; междисциплинарный обзор моделей корреспонденций дан
+в \cite{Rong2024}. Ближе всего к настоящей работе направление, в котором
+градиент внешней задачи получается алгоритмическим дифференцированием самого
+равновесного решателя: обратным распространением через итерации назначения
+\cite{Patwary2023}, неявным дифференцированием условия равновесия,
+встроенного в нейронную сеть как неявный слой \cite{LiuYin2023}, либо
+представлением совместной оценки спроса и параметров поведения вычислительным
+графом с автоматическим дифференцированием \cite{Guarda2024}. Наряду с
+энтропийной регуляризацией для доопределения задачи используются и
+структурные предположения о квазиразреженности матрицы корреспонденций
+\cite{WangBan2023}. Информативность и оптимальное размещение датчиков
+выделены в самостоятельную задачу \cite{ZhouList2010}; развитию этой задачи
+за три десятилетия посвящён обзор \cite{Owais2022}, а современные постановки
+учитывают разнотипные датчики и возможность их отказов \cite{Sun2025}.
+Численные методы поиска равновесий в комбинированных моделях с вложенной
+структурой выбора, задающих внутренний уровень подобных постановок для сетей
+большого размера, развиваются в \cite{Kubentayeva2024}.
+
+Настоящая работа относится к двухуровневым постановкам без априорной
+OD-матрицы: роль априорной информации играют жёсткие маргиналии и энтропийный
+регуляризатор, что сближает внешнюю задачу с моделями
+\cite{Wilson1968,Fisk1988}, а внутренний уровень задаётся задачей Бекмана, как
+в \cite{Yang1992,Krylatov2021}. Отличие от классических схем анализа
+чувствительности равновесия состоит в способе вычисления градиента: как и в
+\cite{Patwary2023}, вместо дифференцирования условий равновесия
+дифференцируется конечное число итераций алгоритма назначения --- здесь
+алгоритма Франк--Вульфа, маршрутные матрицы линейных подзадач которого
+накапливаются одновременно с решением внутренней задачи. Кроме того, акцент
+экспериментов смещён с точности самой матрицы, слабо идентифицируемой при
+частичных наблюдениях, на воспроизведение потоков и влияние числа и
+расположения датчиков.
 
 \paragraph{Математическая постановка}
 
@@ -298,7 +375,7 @@ $\mathcal{F}(D)$ при ненулевом спросе. Поэтому коне
 Франк--Вульфа. Сумма весов назначений на выбранные кратчайшие пути после $q$
 шагов равна $1-2/[(q+1)(q+2)]$ и стремится к единице.
 
-В коде внутренний цикл заканчивается по достижении максимального числа шагов
+Внутренний цикл заканчивается по достижении максимального числа шагов
 или условия $\eta_q\leq\eta_{\rm tol}$, где фактически вычисляется
 \begin{gather}
  c_q^{\rm AON}=\sum\limits_{i,j}D_{ij}
@@ -757,7 +834,7 @@ $E_{\rm del}$ убывает
 задача состоит в выборе датчиков по чувствительности или информационному
 критерию, а не только по величине потока. Наконец, требуется исследовать
 устойчивость рекурсии якобиана около смены кратчайших путей и сопоставить её с
-неявным дифференцированием равновесной задачи.
+неявным дифференцированием равновесной задачи \cite{LiuYin2023}.
 
 \begin{thebibliography}{99}
 
@@ -765,6 +842,12 @@ $E_{\rm del}$ убывает
 {\it Beckmann~M.~J., McGuire~C.~B., Winsten~C.~B.}
 Studies in the economics of transportation.~--- New Haven: Yale University
 Press, 1956.~--- 232~p.
+
+\bibitem[Bierlaire, Toint, 1995]{BierlaireToint1995}
+{\it Bierlaire~M., Toint~Ph.~L.}
+Meuse: an origin--destination matrix estimator that exploits structure~//
+Transportation Research Part B: Methodological.~--- 1995.~--- Vol.~29,
+No.~1.~--- P.~47--60. DOI: 10.1016/0191-2615(94)00025-U.
 
 \bibitem[Bureau of Public Roads, 1964]{BPR1964}
 {\it U.S. Bureau of Public Roads.}
@@ -784,11 +867,36 @@ Origin--destination flow estimation from link count data only~//
 Sensors.~--- 2020.~--- Vol.~20, No.~18.~--- Art.~5226.
 DOI: 10.3390/s20185226.
 
+\bibitem[Fisk, 1988]{Fisk1988}
+{\it Fisk~C.~S.}
+On combining maximum entropy trip matrix estimation with user optimal
+assignment~// Transportation Research Part B: Methodological.~--- 1988.~---
+Vol.~22, No.~1.~--- P.~69--73. DOI: 10.1016/0191-2615(88)90035-5.
+
 \bibitem[Frank, Wolfe, 1956]{FrankWolfe1956}
 {\it Frank~M., Wolfe~P.}
 An algorithm for quadratic programming~// Naval Research Logistics
 Quarterly.~--- 1956.~--- Vol.~3, No.~1--2.~--- P.~95--110.
 DOI: 10.1002/nav.3800030109.
+
+\bibitem[Guarda et al., 2024]{Guarda2024}
+{\it Guarda~P., Battifarano~M., Qian~S.}
+Estimating network flow and travel behavior using day-to-day system-level
+data: a computational graph approach~// Transportation Research Part C:
+Emerging Technologies.~--- 2024.~--- Vol.~158.~--- Art.~104409.
+DOI: 10.1016/j.trc.2023.104409.
+
+\bibitem[Isard, 1960]{Isard1960}
+{\it Isard~W.}
+Methods of regional analysis: an introduction to regional science.~---
+Cambridge, MA: Technology Press of MIT; New York: John Wiley and Sons,
+1960.~--- 784~p.
+
+\bibitem[J\"ornsten, Nguyen, 1979]{JornstenNguyen1979}
+{\it J\"ornsten~K., Nguyen~S.}
+On the estimation of a trip matrix from network data: Technical report
+LiTH-MAT-R-79-36.~--- Link\"oping: Link\"oping University, Department of
+Mathematics, 1979.
 
 \bibitem[Kingma, Ba, 2015]{KingmaBa2015}
 {\it Kingma~D.~P., Ba~J.}
@@ -796,11 +904,32 @@ Adam: a method for stochastic optimization~// 3rd International Conference
 on Learning Representations (ICLR).~--- San Diego, 2015.~--- P.~1--15.
 URL: \url{https://arxiv.org/abs/1412.6980} (accessed 13.07.2026).
 
+\bibitem[Krylatov et al., 2021]{Krylatov2021}
+{\it Krylatov~A., Raevskaya~A., Zakharov~V.}
+Travel demand estimation in urban road networks as inverse traffic
+assignment problem~// Transport and Telecommunication Journal.~--- 2021.~---
+Vol.~22, No.~3.~--- P.~287--300. DOI: 10.2478/ttj-2021-0022.
+
+\bibitem[Kubentayeva et al., 2024]{Kubentayeva2024}
+{\it Kubentayeva~M., Yarmoshik~D., Persiianov~M., Kroshnin~A.,
+Kotliarova~E., Tupitsa~N., Pasechnyuk~D., Gasnikov~A., Shvetsov~V.,
+Baryshev~L., Shurupov~A.}
+Primal-dual gradient methods for searching network equilibria in combined
+models with nested choice structure and capacity constraints~//
+Computational Management Science.~--- 2024.~--- Vol.~21, No.~1.~--- Art.~15.
+DOI: 10.1007/s10287-023-00494-8.
+
 \bibitem[LeBlanc et al., 1975]{LeBlanc1975}
 {\it LeBlanc~L.~J., Morlok~E.~K., Pierskalla~W.~P.}
 An efficient approach to solving the road network equilibrium traffic
 assignment problem~// Transportation Research.~--- 1975.~--- Vol.~9,
 No.~5.~--- P.~309--318. DOI: 10.1016/0041-1647(75)90030-1.
+
+\bibitem[Liu et al., 2023]{LiuYin2023}
+{\it Liu~Z., Yin~Y., Bai~F., Grimm~D.~K.}
+End-to-end learning of user equilibrium with implicit neural networks~//
+Transportation Research Part C: Emerging Technologies.~--- 2023.~---
+Vol.~150.~--- Art.~104085. DOI: 10.1016/j.trc.2023.104085.
 
 \bibitem[Mohanty, Pozdnukhov, 2020]{Mohanty2020}
 {\it Mohanty~S., Pozdnukhov~A.}
@@ -808,11 +937,43 @@ Dynamic origin--destination demand estimation from link counts, cellular
 data and travel time data~// Transportation Research Procedia.~--- 2020.~---
 Vol.~48.~--- P.~1722--1739. DOI: 10.1016/j.trpro.2020.08.209.
 
+\bibitem[Nguyen, 1977]{Nguyen1977}
+{\it Nguyen~S.}
+Estimating an OD matrix from network data: a network equilibrium approach:
+Publication No.~87.~--- Montr\'eal: Universit\'e de Montr\'eal, Centre de
+recherche sur les transports, 1977.
+
+\bibitem[Owais, 2022]{Owais2022}
+{\it Owais~M.}
+Traffic sensor location problem: three decades of research~// Expert
+Systems with Applications.~--- 2022.~--- Vol.~208.~--- Art.~118134.
+DOI: 10.1016/j.eswa.2022.118134.
+
+\bibitem[Patwary et al., 2023]{Patwary2023}
+{\it Patwary~A.~U.~Z., Wang~S., Lo~H.~K.}
+Iterative backpropagation method for efficient gradient estimation in
+bilevel network equilibrium optimization problems~// Transportation
+Science.~--- 2023.~--- Vol.~57, No.~5.~--- P.~1134--1159.
+DOI: 10.1287/trsc.2021.0110.
+
+\bibitem[Rong et al., 2024]{Rong2024}
+{\it Rong~C., Ding~J., Li~Y.}
+An interdisciplinary survey on origin--destination flows modeling: theory
+and techniques~// ACM Computing Surveys.~--- 2024.~--- Vol.~57, No.~1.~---
+P.~1--49. DOI: 10.1145/3682058.
+
 \bibitem[Sinkhorn, Knopp, 1967]{SinkhornKnopp1967}
 {\it Sinkhorn~R., Knopp~P.}
 Concerning nonnegative matrices and doubly stochastic matrices~// Pacific
 Journal of Mathematics.~--- 1967.~--- Vol.~21, No.~2.~--- P.~343--348.
 DOI: 10.2140/pjm.1967.21.343.
+
+\bibitem[Sun et al., 2025]{Sun2025}
+{\it Sun~W., Shao~H., Li~J., Wu~T., Fainman~E.~Z.}
+Multi-type traffic sensor location problem for origin--destination
+estimation considering spatiotemporal correlation and sensor failure~//
+Transportation Research Part C: Emerging Technologies.~--- 2025.~---
+Vol.~179.~--- Art.~105288. DOI: 10.1016/j.trc.2025.105288.
 
 \bibitem[Transportation Networks for Research, 2026]{TNTP2026}
 {\it Transportation Networks for Research Core Team.}
@@ -820,6 +981,30 @@ Transportation Networks for Research: Sioux Falls network and trip table
 [Electronic resource].
 URL: \url{https://github.com/bstabler/TransportationNetworks/tree/master/SiouxFalls}
 (accessed 13.07.2026).
+
+\bibitem[Spiess, 1987]{Spiess1987}
+{\it Spiess~H.}
+A maximum likelihood model for estimating origin--destination matrices~//
+Transportation Research Part B: Methodological.~--- 1987.~--- Vol.~21,
+No.~5.~--- P.~395--412. DOI: 10.1016/0191-2615(87)90037-3.
+
+\bibitem[Van Zuylen, Willumsen, 1980]{VanZuylenWillumsen1980}
+{\it Van Zuylen~H.~J., Willumsen~L.~G.}
+The most likely trip matrix estimated from traffic counts~// Transportation
+Research Part B: Methodological.~--- 1980.~--- Vol.~14, No.~3.~---
+P.~281--293. DOI: 10.1016/0191-2615(80)90008-9.
+
+\bibitem[Wang et al., 2023]{WangBan2023}
+{\it Wang~J., Lu~S., Liu~H., Ban~X.~J.}
+Transportation origin--destination demand estimation with quasi-sparsity~//
+Transportation Science.~--- 2023.~--- Vol.~57, No.~2.~--- P.~289--312.
+DOI: 10.1287/trsc.2022.1178.
+
+\bibitem[Wilson, 1968]{Wilson1968}
+{\it Wilson~A.~G.}
+Models in urban planning: a synoptic review of recent literature~// Urban
+Studies.~--- 1968.~--- Vol.~5, No.~3.~--- P.~249--276.
+DOI: 10.1080/00420986820080511.
 
 \bibitem[Yang et al., 1992]{Yang1992}
 {\it Yang~H., Sasaki~T., Iida~Y., Asakura~Y.}
